@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist/
+npm-debug.log*
+
+# Environment files
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Uploads
+uploads/
+
+# Logs
+*.log
+yarn-debug.log*
+yarn-error.log*
