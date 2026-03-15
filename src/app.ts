@@ -1,11 +1,13 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { startOfDatabase } from "./config/db";
 
 dotenv.config();
 const FRONTEND_ADDRESS = process.env.FRONTEND_ADDRESS as string;
 
 const app = express();
+startOfDatabase();
 
 app.use(cors({
   origin: FRONTEND_ADDRESS,
