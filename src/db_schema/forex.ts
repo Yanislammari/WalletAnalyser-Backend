@@ -12,8 +12,8 @@ export const attributesForex = {
 
 export class Forex extends Model {
     public uuid!: string;
-    public baseCurrency!: string;
-    public quoteCurrency!: string;
+    public base_currency!: string;
+    public quote_currency!: string;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
 }

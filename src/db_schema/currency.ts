@@ -3,14 +3,14 @@ import { sequelize } from '../config';
 
 export const attributesCurrency = {
     uuid: 'uuid',
-    currencyName : 'currency_name',
+    currency_name : 'currency_name',
     createdAt: 'created_at',
     updatedAt: 'updated_at'
 };
 
 export class Currency extends Model {
     public uuid!: string;
-    public currencyName!: string;
+    public currency_name!: string;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
 }
