@@ -69,7 +69,7 @@ export default class ExcelService {
           const quoteCurrency = await this.currenciesService.addCurrencyToDb(forexRates[0] as string);
           if (euroBaseCurrency && quoteCurrency) {
             const forex = await this.currenciesService.addForexToDb(euroBaseCurrency.uuid, quoteCurrency.uuid);
-            this.addPriceCurrenciesFromExcel(dates, forexRates, forex);
+            this.addPriceCurrenciesFromExcel(dates, forexRates, forex,forexRates[0] as string);
           }
         }
       }
@@ -79,9 +79,9 @@ export default class ExcelService {
     }
   }
 
-  async addPriceCurrenciesFromExcel(dates : Date[], forexRates : string[], forex : Forex) {
+  async addPriceCurrenciesFromExcel(dates : Date[], forexRates : string[], forex : Forex, quoteCurrencyName : string) {
     const latestUpdate = await this.currenciesService.getLastestForexRateFromDb(forex.uuid);
-    const isMajor = this.majorCurrencies.includes(forex.quote_currency);
+    const isMajor = this.majorCurrencies.includes(quoteCurrencyName);
     for (let j = 1; j < forexRates.length; j++) {
       if (dates[j] <= latestUpdate) {
         break;
