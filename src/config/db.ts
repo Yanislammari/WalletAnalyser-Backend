@@ -18,8 +18,8 @@ export const sequelize = new Sequelize(DATABASE_URL, {
     logging: false
 });
 
-export const startOfDatabase = async () => {
-    sequelize
+export async function startOfDatabase(){
+    await sequelize
         .sync({})
         .then(() => {
             console.log('Database and tables have been synchronized');
