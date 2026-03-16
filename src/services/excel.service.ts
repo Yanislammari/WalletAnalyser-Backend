@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import path from 'path';
 import { Asset, Forex } from "../db_schema";
 import MarketstackService from "./marketstack/marketstack.service";
-import { AssetDatabaseModel, AssetPriceCompleteModel } from "../models";
+import { AssetDatabaseModel, AssetPriceCompleteModel, GeographicSector } from "../models";
 import AssetService from "./asset/asset.service";
 
 export default class ExcelService {
@@ -127,17 +127,18 @@ export default class ExcelService {
     }
   }
 
-  getSectorFromTickerFromSpecificSheet(ticker : string, sheets : string[]) : string | null {
+  getGeographicSectorFromTickerFromSpecificSheet(ticker : string, sheets : string[]) : GeographicSector | null {
     try {
       for (const path of this.stocksPath) {
         for(const sheetName of sheets) {
           const worksheet = this.openExcelFile(path, sheetName);
           const range = this.getExcelSize(worksheet);
-          const tickers = this.findRowIndexOfTicker(worksheet, this.tickersColumnIndex, range, ticker);
-          if (tickers !== -1) {
-            const sector = this.readCellValue(worksheet, this.sectorColumnIndex, tickers);
-            if (sector) {
-              return sector
+          const rowIndexTicker = this.findRowIndexOfTicker(worksheet, this.tickersColumnIndex, range, ticker);
+          if (rowIndexTicker !== -1) {
+            const sector = this.readCellValue(worksheet, this.sectorColumnIndex, rowIndexTicker);
+            const country = this.readCellValue(worksheet, this.countryColumnIndex, rowIndexTicker)
+            if (sector && country) {
+              return new GeographicSector(sector,country)
             }
           }
         }
@@ -157,9 +158,12 @@ export default class ExcelService {
         const assetInfoPrice = assetPrice[0] as AssetPriceCompleteModel
         const currency = await this.currenciesService.getCurenciesFromDb(assetInfoPrice.price_currency);
         const asset = await this.assetService.addAssetFromAssetToDatabase(new AssetDatabaseModel(currency?.uuid ?? null,assetInfo.name,assetInfo.ticker,assetInfo.exchange_code,assetInfoPrice.asset_type))
+        const findFrGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameFr);
+        const findEnGeograpghicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameEn); 
         //Prix
         //Sector both avec allias et concentration svp
         //Pays
+        // Check that sector is not already registered ( same for allias )
       }
     } catch (error) {
       console.error("Error adding stocks to the database:", error);

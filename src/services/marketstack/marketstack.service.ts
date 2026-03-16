@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { AssetInfoModel, AssetModel, AssetPriceCompleteModel, AssetPriceModel } from '../../models';
+import { AssetInfoModel, AssetPriceCompleteModel, AssetPriceModel } from '../../models';
 
 dotenv.config();
 const apiKey = process.env.MARKETSTACK_API_KEY;
