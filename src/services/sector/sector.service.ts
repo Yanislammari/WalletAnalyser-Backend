@@ -1,28 +1,45 @@
-import { Sector, attributesSector } from "../../db_schema";
+import { Op } from "sequelize";
+import { Sector, SectorAllias, attributesSector, attributesSectorAllias } from "../../db_schema";
+import SectorAlliasService from "./sector_alllias.repository";
 
 export default class SectorService {
+
+  private sectorAlliasService : SectorAlliasService = new SectorAlliasService();
 
   constructor() {
 
   }
 
-  async getSector(sector : string) : Promise <Sector | null> {
+  async getSectorByName(sectorName: string): Promise<Sector | null> {
     try {
-      const existingSector = await Sector.findOne({
+      const sector = await Sector.findOne({
         where: {
-          [attributesSector.sector_name]: sector
-        }
-      }) || null;
-      return existingSector;
+          [attributesSector.sector_name]: sectorName
+        },
+      });
+
+      if (sector) return sector;
+      const alias = await SectorAllias.findOne({
+        where: {
+          [attributesSectorAllias.sector_allias_name]: sectorName
+        },
+        include: [
+          {
+            model: Sector,
+            required: true
+          }
+        ]
+      });
+      return alias ? alias.sector : null;
     } catch (error) {
-      console.error(`Error fetching ${sector}`, error);
+      console.error(`Error fetching ${sectorName}`, error);
       return null;
     }
-  } 
+  }
 
   async addSectorToDatabase(sector : string) : Promise<Sector> {
     try {
-      const existingSector = await this.getSector(sector);
+      const existingSector = await this.getSectorByName(sector);
       if (existingSector) {
         return existingSector;
       }
@@ -32,7 +49,7 @@ export default class SectorService {
       return newSector;
     } 
     catch (error) {
-      console.error(`Error adding sector ${sector} to database:`, error);
+      console.error(`Error adding sector ${sector} to database:`, error);4
       throw error;
     }
   }

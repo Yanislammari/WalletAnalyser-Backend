@@ -2,17 +2,24 @@ import CurrenciesService from "./currencies.service";
 import DateService from "./date.service";
 import * as XLSX from 'xlsx';
 import path from 'path';
-import { Asset, Forex } from "../db_schema";
+import { Asset, Forex, SectorAllias } from "../db_schema";
 import MarketstackService from "./marketstack/marketstack.service";
 import { AssetDatabaseModel, AssetPriceCompleteModel, GeographicSector } from "../models";
 import AssetService from "./asset/asset.service";
+import AssetPriceService from "./asset/asset_price.service";
+import SectorService from "./sector/sector.service";
+import { geographicSectorDefaultValue } from "../messages";
+import SectorAlliasService from "./sector/sector_alllias.repository";
+import { Sector } from '../db_schema/sector/sector';
+import CountryRepository from "./country/country.repository";
+import CountryAlliasRepository from "./country/country_allias.repository";
 
 export default class ExcelService {
 
   private constantPath : string = "../asset/excel/"
-  private defaultAssetTicker : string[] = ["MSFT"]//, "TTE","UNH","BABA","NVDA","JPM","V","PG","TSM","CHT","RHHBF","T","HD","XOM","MRK","NVS","CMCSA","TM","BA","HSBC","NRG"] // a terme viendra d'une API officielle
+  private defaultAssetTicker : string[] = ["MSFT"]//, "TTE","UNH","BABA","JPM","V","PG","TSM","CHT","RHHBF","T","HD","XOM","TM","BA","HSBC"] // a terme viendra d'une API officielle
   private currenciesPath : string[] = [path.join(__dirname,this.constantPath,'official_currencies_rate.xlsx')]
-  private majorCurrencies : string[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
+  private majorCurrencies : string[] = ["USD"] //,"EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
   private risksFreeRatePath : string[] = ["..\src\excel\risk_free_rate_usa.xlsx"]
   private stocksPath : string[] = ["../asset/excel/official_stocks_api.xlsx"]
   private stocksSheetNameFr : string[] = ["usa_fr","europe_fr","world_ex_usa_fr"]
@@ -26,6 +33,11 @@ export default class ExcelService {
   private marketstackService : MarketstackService = new MarketstackService();
   private assetService : AssetService = new AssetService();
   private dateService : DateService = new DateService();
+  private assetPriceService : AssetPriceService = new AssetPriceService();
+  private sectorService : SectorService = new SectorService();
+  private sectorAlliasService : SectorAlliasService = new SectorAlliasService();
+  private countryRepository : CountryRepository = new CountryRepository();
+  private countryAlliasRepository : CountryAlliasRepository = new CountryAlliasRepository();
 
   constructor() {
 
@@ -137,11 +149,10 @@ export default class ExcelService {
           if (rowIndexTicker !== -1) {
             const sector = this.readCellValue(worksheet, this.sectorColumnIndex, rowIndexTicker);
             const country = this.readCellValue(worksheet, this.countryColumnIndex, rowIndexTicker)
-            if (sector && country) {
-              return new GeographicSector(sector,country)
-            }
+            return new GeographicSector(sector,country)
           }
         }
+        return new GeographicSector(geographicSectorDefaultValue,geographicSectorDefaultValue);
       }
       return null;
     } catch (error) {
@@ -159,11 +170,21 @@ export default class ExcelService {
         const currency = await this.currenciesService.getCurenciesFromDb(assetInfoPrice.price_currency);
         const asset = await this.assetService.addAssetFromAssetToDatabase(new AssetDatabaseModel(currency?.uuid ?? null,assetInfo.name,assetInfo.ticker,assetInfo.exchange_code,assetInfoPrice.asset_type))
         const findFrGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameFr);
-        const findEnGeograpghicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameEn); 
-        //Prix
-        //Sector both avec allias et concentration svp
-        //Pays
-        // Check that sector is not already registered ( same for allias )
+        const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameEn); 
+        
+        const latestPrice = await this.assetPriceService.getLatestAssetPrice(asset.uuid)
+        let i = 0;
+        while(assetPrice[i].date > latestPrice && i < assetPrice.length){
+          await this.assetPriceService.addAssetPrice(asset.uuid,assetPrice[i])
+        }
+        const officialSector = await this.sectorService.addSectorToDatabase(findFrGeographicSector?.sector ?? geographicSectorDefaultValue)
+        if(findEnGeographicSector?.sector){
+          await this.sectorAlliasService.addSectorAlliasToDatabase(officialSector.uuid,findEnGeographicSector?.sector)
+        }
+        const officialCountry = await this.countryRepository.addCountryToDatabase(findFrGeographicSector?.country ?? geographicSectorDefaultValue)
+        if(findEnGeographicSector?.country){
+          await this.countryAlliasRepository.addCountryAlliasToDatabase(officialCountry.uuid,findEnGeographicSector?.country)
+        }
       }
     } catch (error) {
       console.error("Error adding stocks to the database:", error);

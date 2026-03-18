@@ -1,6 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../config';
-import { Forex } from '.';
+import { sequelize } from '../../config';
+import { Forex } from '..';
 
 export const attributesForexRate = {
     uuid: 'uuid',

@@ -14,6 +14,7 @@ export class CountryAllias extends Model {
     public uuid!: string;
     public country_uuid!: string;
     public country_allias_name!: string;
+    public country! : Country
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
 }
@@ -43,4 +44,5 @@ CountryAllias.init(
     }
 );
 
-CountryAllias.belongsTo(Country, { as: 'alliasCountry', foreignKey: attributesCountryAllias.country_uuid });
+CountryAllias.belongsTo(Country, { as: 'country', foreignKey: attributesCountryAllias.country_uuid });
+Country.hasMany(CountryAllias, {as : 'countryAllias', foreignKey: attributesCountryAllias.country_uuid })

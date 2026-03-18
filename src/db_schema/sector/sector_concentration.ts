@@ -58,5 +58,5 @@ SectorConcentration.init(
     }
 );
 
-SectorConcentration.belongsTo(Sector, { as: 'sectorConcentration', foreignKey: attributesSectorConcentration.sector_uuid });
+SectorConcentration.belongsTo(Sector, { as: 'sector', foreignKey: attributesSectorConcentration.sector_uuid });
 SectorConcentration.belongsTo(Asset, { as: 'asset', foreignKey: attributesSectorConcentration.asset_uuid });

@@ -14,6 +14,7 @@ export class SectorAllias extends Model {
     public uuid!: string;
     public sector_uuid!: string;
     public sector_allias_name!: string;
+    public sector! : Sector;
     public readonly createdAt!: Date;
     public readonly updatedAt!: Date;
 }
@@ -43,4 +44,5 @@ SectorAllias.init(
     }
 );
 
-SectorAllias.belongsTo(Sector, { as: 'alliasSector', foreignKey: attributesSectorAllias.sector_uuid });
+SectorAllias.belongsTo(Sector, { as: 'sector', foreignKey: attributesSectorAllias.sector_uuid });
+Sector.hasMany(SectorAllias, {as : 'sectorAllias',foreignKey : attributesSectorAllias.sector_uuid})
