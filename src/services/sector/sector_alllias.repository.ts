@@ -21,12 +21,12 @@ export default class SectorAlliasService {
       }) || null;
       return existingSectorAllias;
     } catch (error) {
-      console.error(`Error fetching ${sectorAlliasName}`, error);
+      console.error(`Error fetching allias sector ${sectorAlliasName}`, error);
       return null;
     }
   } 
 
-  async addSectorAlliasToDatabase(sectorAlliasName : string, officialSectorUuid : string) : Promise<SectorAllias> {
+  async addSectorAlliasToDatabase(officialSectorUuid : string, sectorAlliasName : string) : Promise<SectorAllias> {
     try {
       const existingSectorAllias = await this.getSectorAlliasByName(sectorAlliasName);
       if (existingSectorAllias) {
@@ -39,7 +39,7 @@ export default class SectorAlliasService {
       return newAlliasSector;
     } 
     catch (error) {
-      console.error(`Error adding sector ${sectorAlliasName} to database:`, error);4
+      console.error(`Error adding sector allias ${sectorAlliasName} to database:`, error);4
       throw error;
     }
   }

@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import path from 'path';
 import { Asset, Forex, SectorAllias } from "../db_schema";
 import MarketstackService from "./marketstack/marketstack.service";
-import { AssetDatabaseModel, AssetPriceCompleteModel, GeographicSector } from "../models";
+import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
 import AssetService from "./asset/asset.service";
 import AssetPriceService from "./asset/asset_price.service";
 import SectorService from "./sector/sector.service";
@@ -13,6 +13,8 @@ import SectorAlliasService from "./sector/sector_alllias.repository";
 import { Sector } from '../db_schema/sector/sector';
 import CountryRepository from "./country/country.repository";
 import CountryAlliasRepository from "./country/country_allias.repository";
+import SectorConcentrationRepository from './sector/sector_concentration.repository';
+import CountryConcentrationRepository from "./country/country_concentration.repository";
 
 export default class ExcelService {
 
@@ -21,13 +23,13 @@ export default class ExcelService {
   private currenciesPath : string[] = [path.join(__dirname,this.constantPath,'official_currencies_rate.xlsx')]
   private majorCurrencies : string[] = ["USD"] //,"EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
   private risksFreeRatePath : string[] = ["..\src\excel\risk_free_rate_usa.xlsx"]
-  private stocksPath : string[] = ["../asset/excel/official_stocks_api.xlsx"]
+  private stocksPath : string[] = [path.join(__dirname,this.constantPath,'official_stocks_api.xlsx')]
   private stocksSheetNameFr : string[] = ["usa_fr","europe_fr","world_ex_usa_fr"]
   private stocksSheetNameEn : string[] = ["usa_en","europe_en","world_ex_usa_en"]
-  private tickersColumnIndex : number = 4;
-  private countryColumnIndex : number = 3;
-  private sectorColumnIndex : number = 2;
-  private assetNameColumnIndex : number = 1;
+  private tickersColumnIndex : number = 3;
+  private countryColumnIndex : number = 2;
+  private sectorColumnIndex : number = 1;
+  private assetNameColumnIndex : number = 0;
 
   private currenciesService : CurrenciesService = new CurrenciesService();
   private marketstackService : MarketstackService = new MarketstackService();
@@ -36,8 +38,10 @@ export default class ExcelService {
   private assetPriceService : AssetPriceService = new AssetPriceService();
   private sectorService : SectorService = new SectorService();
   private sectorAlliasService : SectorAlliasService = new SectorAlliasService();
+  private sectorConcentrationRepository : SectorConcentrationRepository = new SectorConcentrationRepository();
   private countryRepository : CountryRepository = new CountryRepository();
   private countryAlliasRepository : CountryAlliasRepository = new CountryAlliasRepository();
+  private countryConcentrationRepository : CountryConcentrationRepository = new CountryConcentrationRepository();
 
   constructor() {
 
@@ -45,7 +49,8 @@ export default class ExcelService {
 
   async addDataFromAdmin() {
     await this.addCurrenciesToDatabase();
-    //await this.addStocksToDatabase();
+    await this.addAdminStocksToDatabase();
+    await this.addRiskFreeRateToDatabase();
   }
 
   openExcelFile(filePath : string, workSheetName : string | undefined) : XLSX.WorkSheet {
@@ -129,6 +134,7 @@ export default class ExcelService {
       if (dates[j] <= latestUpdate) {
         break;
       }
+      console.log("Adding currency to db", quoteCurrencyName)
       const dayOfWeek = dates[j].getDay()
       if(!isMajor && dayOfWeek != 5)continue; // for non major currency, we only add the price of friday
       const forexRate = parseFloat(forexRates[j] as string);
@@ -161,33 +167,64 @@ export default class ExcelService {
     }
   }
 
+  async isAssetPriceUpToDate(ticker : string) : Promise<boolean> {
+    try{
+      const asset = await this.assetService.getAssetFromTicker(ticker);
+      const today = new Date();
+      if(asset){
+        const assetLatestPriceData = await this.assetPriceService.getLatestAssetPrice(asset.uuid);
+        return this.dateService.isAssetPriceSameDay(today,assetLatestPriceData);
+      }
+      return false
+    }
+    catch ( error ) {
+      console.error(`Error while checking stock ${ticker}`, error);
+      throw error;
+    }
+  }
+
   async addAdminStocksToDatabase() {
     try {
-      for(const ticker in this.defaultAssetTicker){
-        const assetInfo = await this.marketstackService.fetchTickerInfo(ticker);
+      for(const ticker of this.defaultAssetTicker){
+        const isTickerUpToDate = await this.isAssetPriceUpToDate(ticker);
+        if(isTickerUpToDate){
+          continue;
+        }
+        console.log("Fetching ticker price date", ticker);
+
+        /**const assetInfo = await this.marketstackService.fetchTickerInfo(ticker);
         const assetPrice = await this.marketstackService.fetchHistoricalData(ticker);
-        const assetInfoPrice = assetPrice[0] as AssetPriceCompleteModel
+        const assetInfoPrice = assetPrice[0] as AssetPriceCompletModel
         const currency = await this.currenciesService.getCurenciesFromDb(assetInfoPrice.price_currency);
         const asset = await this.assetService.addAssetFromAssetToDatabase(new AssetDatabaseModel(currency?.uuid ?? null,assetInfo.name,assetInfo.ticker,assetInfo.exchange_code,assetInfoPrice.asset_type))
-        const findFrGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameFr);
-        const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameEn); 
-        
+    
         const latestPrice = await this.assetPriceService.getLatestAssetPrice(asset.uuid)
         let i = 0;
-        while(assetPrice[i].date > latestPrice && i < assetPrice.length){
-          await this.assetPriceService.addAssetPrice(asset.uuid,assetPrice[i])
+        while( i < assetPrice.length && assetPrice[i].date > latestPrice ){
+          await this.assetPriceService.addAssetPrice(asset.uuid,assetPrice[i].date,assetPrice[i].adj_close);
+          i++;
         }
-        const officialSector = await this.sectorService.addSectorToDatabase(findFrGeographicSector?.sector ?? geographicSectorDefaultValue)
+
+        const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameEn); 
+        const findFrGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker,this.stocksSheetNameFr);
+        const officialSector = await this.sectorService.addSectorToDatabase(findFrGeographicSector?.sector ?? geographicSectorDefaultValue);
+        await this.sectorConcentrationRepository.addSectorConcentrationToDatabase(asset.uuid, officialSector.uuid, 100);
         if(findEnGeographicSector?.sector){
-          await this.sectorAlliasService.addSectorAlliasToDatabase(officialSector.uuid,findEnGeographicSector?.sector)
+          await this.sectorAlliasService.addSectorAlliasToDatabase(officialSector.uuid,findEnGeographicSector?.sector);
+          await this.sectorAlliasService.addSectorAlliasToDatabase(officialSector.uuid, assetInfo.sector);
         }
-        const officialCountry = await this.countryRepository.addCountryToDatabase(findFrGeographicSector?.country ?? geographicSectorDefaultValue)
+        const officialCountry = await this.countryRepository.addCountryToDatabase(findFrGeographicSector?.country ?? geographicSectorDefaultValue);
+        await this.countryConcentrationRepository.addCountryConcentrationToDatabase(asset.uuid, officialCountry.uuid, 100)
         if(findEnGeographicSector?.country){
           await this.countryAlliasRepository.addCountryAlliasToDatabase(officialCountry.uuid,findEnGeographicSector?.country)
-        }
+        }**/
       }
     } catch (error) {
       console.error("Error adding stocks to the database:", error);
     }
+  }
+
+  async addRiskFreeRateToDatabase(){
+    
   }
 }

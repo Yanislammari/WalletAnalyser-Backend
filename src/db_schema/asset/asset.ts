@@ -5,7 +5,7 @@ import { Currency } from '..';
 export const attributesAsset = {
     uuid: 'uuid',
     base_currency_uuid : 'base_currency_uuid',
-    type : 'type',
+    asset_type : 'asset_type',
     ticker_name : 'ticker_name',
     official_name : 'official_name',
     exchange_code : 'exchange_code',
@@ -16,7 +16,7 @@ export const attributesAsset = {
 export class Asset extends Model {
     public uuid!: string;
     public base_currency_uuid!: string;
-    public type!: string;
+    public asset_type!: string;
     public ticker_name!: string;
     public official_name!: string;
     public exchange_code!: string;
@@ -39,7 +39,7 @@ Asset.init(
               key: 'uuid'
             }
         },
-        type: {
+        asset_type: {
           type: DataTypes.STRING,
           allowNull: false
         },

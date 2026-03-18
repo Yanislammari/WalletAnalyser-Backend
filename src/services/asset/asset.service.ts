@@ -1,7 +1,5 @@
 import { Asset, attributesAsset } from "../../db_schema";
-import { AssetDatabaseModel, AssetPriceCompleteModel } from "../../models";
-import CurrenciesService from "../currencies.service";
-import MarketstackService from '../marketstack/marketstack.service';
+import { AssetDatabaseModel } from "../../models";
 
 export default class AssetService {
 
@@ -29,7 +27,13 @@ export default class AssetService {
       if (existingAsset) {
         return existingAsset;
       }
-      const newAsset = await Asset.create({asset})
+      const newAsset = await Asset.create({
+         [attributesAsset.base_currency_uuid] : asset.base_currency_uuid,
+         [attributesAsset.asset_type] : asset.asset_type,
+         [attributesAsset.exchange_code] : asset.exchange_code,
+         [attributesAsset.official_name] : asset.official_name,
+         [attributesAsset.ticker_name] : asset.ticker_name,
+      });
       return newAsset;
     } 
     catch (error) {

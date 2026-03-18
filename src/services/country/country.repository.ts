@@ -21,6 +21,7 @@ export default class CountryRepository {
         include: [
           {
             model: Country,
+            as : 'country',
             required: true
           }
         ]

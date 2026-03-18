@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
-import { AssetInfoModel, AssetPriceCompleteModel, AssetPriceModel } from '../../models';
+import { AssetInfoModel, AssetPriceCompletModel, AssetPriceModel } from '../../models';
 
 dotenv.config();
-const apiKey = process.env.MARKETSTACK_API_KEY;
-const baseUrl = process.env.MARKETSTACK_BASE_URL;
+const apiKey = process.env.API_MARKETSTACK_KEY;
+const baseUrl = process.env.API_MARKETSTACK_URL;
 
 export default class MarketstackService {
 
@@ -37,13 +37,13 @@ export default class MarketstackService {
     }
   }
 
-  async fetchHistoricalData(ticker: string): Promise<(AssetPriceCompleteModel | AssetPriceModel)[]> {
+  async fetchHistoricalData(ticker: string): Promise<(AssetPriceCompletModel | AssetPriceModel)[]> {
     try {
-      const data = await this.fetchData(`${ticker}/eod?limit=10000&`);
+      const data = await this.fetchData(`tickers/${ticker}/eod?limit=10000&`);
       const priceDate = data.data.eod
       return priceDate.map((item : any, index : number) => {
         if (index === 0) {
-          return new AssetPriceCompleteModel(
+          return new AssetPriceCompletModel(
             new Date(item.date),
             item.adj_close,
             item.price_currency,

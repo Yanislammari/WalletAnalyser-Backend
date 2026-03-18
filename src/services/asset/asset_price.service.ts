@@ -1,5 +1,5 @@
 import { AssetPrice, attributesAssetPrice } from "../../db_schema";
-import { AssetPriceCompleteModel, AssetPriceModel } from "../../models";
+import { AssetPriceModel,AssetPriceCompletModel } from "../../models";
 
 export default class AssetPriceService {
   constructor() {
@@ -39,16 +39,16 @@ export default class AssetPriceService {
     }
   }
 
-  async addAssetPrice(assetUuid : string, assetPrice : (AssetPriceCompleteModel | AssetPriceModel)) : Promise<AssetPrice>{
+  async addAssetPrice(assetUuid : string, date : Date, price : number) : Promise<AssetPrice>{
     try{
-      const exisitingAssetPrice = await this.getAssetPriceAtDate(assetUuid,assetPrice.date)
+      const exisitingAssetPrice = await this.getAssetPriceAtDate(assetUuid,date)
       if(exisitingAssetPrice){
         return exisitingAssetPrice
       }
       const addedAssetPrice = AssetPrice.create({
         [attributesAssetPrice.asset_uuid] : assetUuid,
-        [attributesAssetPrice.asset_price_date] : assetPrice.date,
-        [attributesAssetPrice.asset_price] : assetPrice.adj_close
+        [attributesAssetPrice.asset_price_date] : date,
+        [attributesAssetPrice.asset_price] : price
       });
       return addedAssetPrice;
     }

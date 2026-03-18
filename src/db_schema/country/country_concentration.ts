@@ -7,7 +7,7 @@ export const attributesCountryConcentration = {
     uuid: 'uuid',
     country_uuid : 'country_uuid',
     asset_uuid : 'asset_uuid',
-    country_concentration_percentage : 'concentration_percentage',
+    country_concentration_percentage : 'country_concentration_percentage',
     createdAt: 'created_at',
     updatedAt: 'updated_at'
 };

@@ -26,7 +26,7 @@ export default class CountryAlliasRepository {
     }
   } 
 
-  async addCountryAlliasToDatabase(countryAlliasName : string, officialCountryUuid : string) : Promise<CountryAllias> {
+  async addCountryAlliasToDatabase(officialCountryUuid : string, countryAlliasName : string) : Promise<CountryAllias> {
     try {
       const existingCountryAllias = await this.getCountryAlliasByName(countryAlliasName);
       if (existingCountryAllias) {
