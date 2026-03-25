@@ -21,7 +21,7 @@ export default class AssetPriceService {
     }
   }
 
-  async getLatestAssetPrice(assetUuid : string) : Promise<Date> {
+  async getLatestAssetPrice(assetUuid : string) : Promise<AssetPrice | null> {
     try {
       const latestPrice = await AssetPrice.findOne({
         where: {
@@ -31,7 +31,7 @@ export default class AssetPriceService {
           [attributesAssetPrice.asset_price_date, 'DESC']  // newest first
         ]
       });
-      return latestPrice ? latestPrice.asset_price_date : new Date(0);
+      return latestPrice;
     }
     catch (error) {
       console.error("Error fetching the latest asset price from the database:", error);

@@ -38,7 +38,7 @@ export default class CurrenciesService {
     }
   }
 
-  async getLastestForexRateFromDb(forexUuid : string): Promise<Date> {
+  async getLatestForexRateFromDb(forexUuid : string): Promise<ForexRate | null> {
     try {
       const latestPrice = await ForexRate.findOne({
         where: {
@@ -48,7 +48,7 @@ export default class CurrenciesService {
           [attributesForexRate.forex_rate_date, 'DESC']  // newest first
         ]
       });
-      return latestPrice ? latestPrice.forex_rate_date : new Date(0);
+      return latestPrice;
     }
     catch (error) {
       console.error("Error fetching the latest forex exchange price from the database:", error);
