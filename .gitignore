@@ -21,3 +21,6 @@ uploads/
 *.log
 yarn-debug.log*
 yarn-error.log*
+
+
+.command.txt
