@@ -13,15 +13,15 @@ As the platform evolves, this service will orchestrate all data-driven features 
 
 The backend is designed to:
 
-- Provide structured REST APIs for the WalletAnalyser ecosystem  
-- Process and analyze portfolio data (stocks, ETFs, allocations)  
-- Compute advanced financial metrics such as returns, volatility, Sharpe ratio, and portfolio performance  
-- Manage users, portfolios, and administrative operations  
-- Store and retrieve financial data using a PostgreSQL database  
-- Interact with the database through **Prisma ORM**  
-- Expose secure endpoints with proper authentication and CORS policies  
-- Support integrations with external financial data providers  
-- Prepare the architecture for future scalability and advanced analytics features  
+- Provide structured REST APIs for the WalletAnalyser ecosystem
+- Process and analyze portfolio data (stocks, ETFs, allocations)
+- Compute advanced financial metrics such as returns, volatility, Sharpe ratio, and portfolio performance
+- Manage users, portfolios, and administrative operations
+- Store and retrieve financial data using a PostgreSQL database
+- Interact with the database through **Prisma ORM**
+- Expose secure endpoints with proper authentication and CORS policies
+- Support integrations with external financial data providers
+- Prepare the architecture for future scalability and advanced analytics features
 
 The backend is designed to remain **modular, maintainable, and scalable**, ensuring that WalletAnalyser can evolve toward more advanced portfolio intelligence, automation, and AI-driven investment insights.
 
@@ -124,6 +124,7 @@ docker run -p 8080:8080 walletanalyser-backend
 ```
 
 The Dockerfile uses a multi-stage build:
+
 - Stage 1: TypeScript compilation
 - Stage 2: Lightweight production runtime
 
@@ -133,12 +134,12 @@ The Dockerfile uses a multi-stage build:
 
 A GitHub Actions pipeline automatically:
 
-1. Checks out the repository  
-2. Logs into Azure  
-3. Logs into the Azure Container Registry  
-4. Builds the backend Docker image  
-5. Pushes the latest tag to ACR  
-6. Restarts the Azure App Service to pull and run the new image  
+1. Checks out the repository
+2. Logs into Azure
+3. Logs into the Azure Container Registry
+4. Builds the backend Docker image
+5. Pushes the latest tag to ACR
+6. Restarts the Azure App Service to pull and run the new image
 
 Terraform ensures the App Service is always configured to pull the latest image from ACR.
 
@@ -147,10 +148,10 @@ Terraform ensures the App Service is always configured to pull the latest image 
 ## 📄 Available Commands
 
 `npm install`  
-`npm run dev`   
+`npm run dev`  
 `npm run build`  
 `npm start`  
 `npm run lint`  
-`npm run format`   
+`npm run format`
 
 ---

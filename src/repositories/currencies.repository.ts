@@ -1,79 +1,74 @@
-import { attributesCurrency, attributesForexRate, Currency, ForexRate } from '../db_schema';
-import { attributesForex, Forex } from '../db_schema';
+import { attributesCurrency, attributesForexRate, Currency, ForexRate } from "../db_schema";
+import { attributesForex, Forex } from "../db_schema";
 
-export default class CurrenciesService {
+export class CurrenciesRepository {
+  constructor() {}
 
-  constructor() {
-
-  }
-
-  async getForexFromDb(baseCurrency : string, quoteCurrency : string) : Promise<Forex | null> {
+  async getForexFromDb(baseCurrency: string, quoteCurrency: string): Promise<Forex | null> {
     try {
-      const existingForex = await Forex.findOne({
-        where: {
-          [attributesForex.base_currency]: baseCurrency,
-          [attributesForex.quote_currency]: quoteCurrency
-        }
-      }) || null;
+      const existingForex =
+        (await Forex.findOne({
+          where: {
+            [attributesForex.base_currency]: baseCurrency,
+            [attributesForex.quote_currency]: quoteCurrency,
+          },
+        })) || null;
       return existingForex;
-    }
-    catch (error) {
+    } catch (error) {
       console.error("Error fetching forex from the database:", error);
       return null;
     }
   }
 
-  async getCurenciesFromDb(currencyName : string) : Promise<Currency | null> {
+  async getCurenciesFromDb(currencyName: string): Promise<Currency | null> {
     try {
-      const existingCurrency = await Currency.findOne({
-        where: {
-          [attributesCurrency.currency_name]: currencyName
-        }
-      }) || null;
+      const existingCurrency =
+        (await Currency.findOne({
+          where: {
+            [attributesCurrency.currency_name]: currencyName,
+          },
+        })) || null;
       return existingCurrency;
-    }
-    catch (error) {
+    } catch (error) {
       console.error("Error fetching currencies from the database:", error);
       return null;
     }
   }
 
-  async getLatestForexRateFromDb(forexUuid : string): Promise<ForexRate | null> {
+  async getLatestForexRateFromDb(forexUuid: string): Promise<ForexRate | null> {
     try {
       const latestPrice = await ForexRate.findOne({
         where: {
-          [attributesForexRate.forex_uuid]: forexUuid
+          [attributesForexRate.forex_uuid]: forexUuid,
         },
         order: [
-          [attributesForexRate.forex_rate_date, 'DESC']  // newest first
-        ]
+          [attributesForexRate.forex_rate_date, "DESC"], // newest first
+        ],
       });
       return latestPrice;
-    }
-    catch (error) {
+    } catch (error) {
       console.error("Error fetching the latest forex exchange price from the database:", error);
       throw error;
     }
   }
 
-  async addCurrencyToDb(currencyName : string) : Promise<Currency> {
+  async addCurrencyToDb(currencyName: string): Promise<Currency> {
     try {
       const existingCurrency = await this.getCurenciesFromDb(currencyName);
       if (existingCurrency) {
         return existingCurrency;
       }
       const currency = Currency.create({
-        [attributesCurrency.currency_name]: currencyName
+        [attributesCurrency.currency_name]: currencyName,
       });
       return currency;
-    }
-    catch (error) {
+    } catch (error) {
       console.error(`Error adding currency ${currencyName} to the database:`, error);
       throw error;
     }
   }
 
-  async addForexToDb(baseCurrency : string, quoteCurrency : string) : Promise<Forex> {
+  async addForexToDb(baseCurrency: string, quoteCurrency: string): Promise<Forex> {
     try {
       const existingForex = await this.getForexFromDb(baseCurrency, quoteCurrency);
       if (existingForex) {
@@ -81,33 +76,31 @@ export default class CurrenciesService {
       }
       const forex = Forex.create({
         [attributesForex.base_currency]: baseCurrency,
-        [attributesForex.quote_currency]: quoteCurrency
+        [attributesForex.quote_currency]: quoteCurrency,
       });
       return forex;
-    }
-    catch (error) {
+    } catch (error) {
       console.error(`Error adding forex ${baseCurrency}/${quoteCurrency} to the database:`, error);
       throw error;
     }
   }
 
-  async getForexRateFromDb(forex : Forex, forexRateDate : Date): Promise<ForexRate | null> {
+  async getForexRateFromDb(forex: Forex, forexRateDate: Date): Promise<ForexRate | null> {
     try {
       const existingForexRate = await ForexRate.findOne({
         where: {
           [attributesForexRate.forex_uuid]: forex.uuid,
-          [attributesForexRate.forex_rate_date]: forexRateDate
-        }
+          [attributesForexRate.forex_rate_date]: forexRateDate,
+        },
       });
       return existingForexRate;
-    }
-    catch (error) {
+    } catch (error) {
       console.error("Error fetching forex exchange price from the database:", error);
       throw error;
     }
   }
 
-  async addForexRateToDb(forex : Forex,date : Date, rate : number) : Promise<ForexRate> {
+  async addForexRateToDb(forex: Forex, date: Date, rate: number): Promise<ForexRate> {
     try {
       const existingForexRate = await this.getForexRateFromDb(forex, date);
       if (existingForexRate) {
@@ -116,11 +109,10 @@ export default class CurrenciesService {
       const forexRate = ForexRate.create({
         [attributesForexRate.forex_uuid]: forex.uuid,
         [attributesForexRate.forex_rate_date]: date,
-        [attributesForexRate.forex_rate]: rate
+        [attributesForexRate.forex_rate]: rate,
       });
       return forexRate;
-    }
-    catch (error) {
+    } catch (error) {
       console.error(`Error adding forex exchange price for ${forex.base_currency}/${forex.quote_currency} to the database:`, error);
       throw error;
     }
