@@ -5,6 +5,8 @@ export interface UserResponseDto {
   email: string;
   firstName: string;
   lastName: string;
+  googleId: string | null;
+  googlePictureUrl: string | null;
   ban: boolean;
   userType: UserType;
   createdAt: Date;

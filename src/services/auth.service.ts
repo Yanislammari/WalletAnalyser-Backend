@@ -6,14 +6,17 @@ import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import GoogleOAuthService from "./google.oauth.service";
 
 export class AuthService {
   private readonly userRepository: UserRepository;
   private readonly userMapper: UserMapper;
+  private readonly googleOAuthService: GoogleOAuthService;
 
   constructor() {
     this.userRepository = new UserRepository();
     this.userMapper = new UserMapper();
+    this.googleOAuthService = new GoogleOAuthService();
   }
 
   public async login(request: LoginRequestDto): Promise<AuthResponseDto> {  
@@ -53,5 +56,19 @@ export class AuthService {
       token: jwt.sign({ id: addedUser.id }, SECRET_KEY, { expiresIn: "7d"}),
       user: this.userMapper.userEntityToUserResponseDto(addedUser)
     };
+  }
+
+  public async authWithGoogle(idToken: string): Promise<AuthResponseDto> {
+    try {
+      const { token, user } = await this.googleOAuthService.authWithGoogle(idToken);
+
+      return {
+        token: token,
+        user: user
+      };
+    }
+    catch (error: any) {
+      throw new Error("GOOGLE_AUTH_FAILED");
+    }
   }
 }

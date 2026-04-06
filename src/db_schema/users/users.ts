@@ -7,6 +7,7 @@ export const attributesUser = {
   email: "email",
   password: "password",
   googleId: "google_id",
+  googlePictureUrl: "google_picture_url",
   firstName: "first_name",
   lastName: "last_name",
   ban: "ban",
@@ -21,6 +22,7 @@ export class User extends Model {
   public email!: string;
   public password!: string | null;
   public googleId!: string | null;
+  public googlePictureUrl!: string | null; 
   public first_name!: string;
   public last_name!: string;
   public ban!: boolean;
@@ -59,6 +61,10 @@ User.init(
         name: "unique_google_id_constraint",
         msg: "Google account already linked"
       }
+    },
+    google_picture_url: {
+      type: DataTypes.STRING,
+      allowNull: true
     },
     first_name: {
       type: DataTypes.STRING,

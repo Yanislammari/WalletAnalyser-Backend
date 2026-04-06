@@ -10,6 +10,8 @@ export class UserMapper {
       email: entity.email,
       firstName: entity.first_name,
       lastName: entity.last_name,
+      googleId: entity.googleId,
+      googlePictureUrl: entity.googlePictureUrl,
       ban: entity.ban,
       userType: entity.user_type,
       createdAt: entity.createdAt,
