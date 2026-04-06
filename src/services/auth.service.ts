@@ -1,7 +1,7 @@
 import { SECRET_KEY } from "../constants/env";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
-import { AuthResponseDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
@@ -14,6 +14,26 @@ export class AuthService {
   constructor() {
     this.userRepository = new UserRepository();
     this.userMapper = new UserMapper();
+  }
+
+  public async login(request: LoginRequestDto): Promise<AuthResponseDto> {  
+    const user: User | null = await this.userRepository.getByEmail(request.email);
+    if (!user) {
+      throw new Error("INVALID_EMAIL_CREDENTIALS");
+    }
+    if (!user.password) {
+      throw new Error("PASSWORD_NOT_SET");
+    }
+  
+    const isPasswordValid: boolean = await bcrypt.compare(request.password, user.password);
+    if (!isPasswordValid) {
+      throw new Error("INVALID_PASSWORD_CREDENTIALS");
+    }
+
+    return {
+      token: jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "7d" }),
+      user: this.userMapper.userEntityToUserResponseDto(user)
+    };
   }
 
   public async register(request: RegisterRequestDto): Promise<AuthResponseDto> {

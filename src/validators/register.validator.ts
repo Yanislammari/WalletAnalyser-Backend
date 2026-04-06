@@ -28,10 +28,7 @@ export const RegisterValidator = z.object({
     .string()
     .min(8, "Password must be at least 8 characters")
     .max(255, "Password must be at most 255 characters")
-    .regex(
-      PASSWORD_REGEX,
-      "Password must be at least 8 characters long and contain at least one letter and one number"
-    ),
+    .regex(PASSWORD_REGEX, "Password must be at least 8 characters long and contain at least one letter and one number"),
 });
 
 export const RegisterSchema = RegisterValidator;

@@ -8,6 +8,7 @@ const AuthRoutes = (): Router => {
   const authController = new AuthController();
 
   router.post("/register", ValidatorMiddleware(RegisterSchema), (req, res) => authController.register(req, res));
+  router.post("/login", (req, res) => authController.login(req, res));
 
   return router;
 }

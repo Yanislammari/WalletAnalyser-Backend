@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { AuthResponseDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 
 class AuthController {
   private readonly authService: AuthService;
@@ -21,6 +21,26 @@ class AuthController {
       }
       else if (error instanceof Error && error.message === "USERNAME_ALREADY_EXISTS") {
         return res.status(409).json({ message: "Username already exists" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async login(req: Request, res: Response): Promise<Response> {
+    try {
+      const request: LoginRequestDto = req.body;
+      const response: AuthResponseDto = await this.authService.login(request);
+      return res.status(200).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "INVALID_EMAIL_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid email credentials" });
+      }
+      else if (error instanceof Error && error.message === "PASSWORD_NOT_SET") {
+        return res.status(401).json({ message: "Password not set for this user" });
+      }
+      else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid password credentials" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
