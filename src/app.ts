@@ -6,7 +6,7 @@ import ExcelService from "./services/excel.service";
 import AuthRoutes from "./routes/auth.routes";
 
 dotenv.config();
-const FRONTEND_ADDRESS = process.env.FRONTEND_ADDRESS as string;
+const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || '[]') as string[];
 
 const app = express();
 

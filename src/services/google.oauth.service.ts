@@ -1,5 +1,4 @@
 import { LoginTicket, OAuth2Client, TokenPayload } from "google-auth-library";
-import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import { UserRepository } from "../repositories";
 import { OAUTH_CLIENT_ID, SECRET_KEY } from "../constants/env";
@@ -8,9 +7,7 @@ import UserType from "../db_schema/users/user_type";
 import { AuthResponseDto } from "../dtos";
 import { UserMapper } from "../mappers";
 
-dotenv.config();
-
-class GoogleOAuthService {
+export class GoogleOAuthService {
   private readonly googleOAuthClient: OAuth2Client;
   private readonly userRepository: UserRepository;
   private readonly userMapper: UserMapper;
@@ -58,5 +55,3 @@ class GoogleOAuthService {
     }
   }
 }
-
-export default GoogleOAuthService;

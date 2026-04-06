@@ -6,7 +6,7 @@ import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import GoogleOAuthService from "./google.oauth.service";
+import { GoogleOAuthService } from "./google.oauth.service";
 
 export class AuthService {
   private readonly userRepository: UserRepository;
