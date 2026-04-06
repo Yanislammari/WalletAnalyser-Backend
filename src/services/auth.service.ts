@@ -71,4 +71,9 @@ export class AuthService {
       throw new Error("GOOGLE_AUTH_FAILED");
     }
   }
+
+  public async checkEmailAvailability(email: string): Promise<boolean> {
+    const user: User | null = await this.userRepository.getByEmail(email);
+    return user ? false : true;
+  }
 }

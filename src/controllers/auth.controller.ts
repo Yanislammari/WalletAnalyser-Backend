@@ -19,9 +19,6 @@ class AuthController {
       if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
         return res.status(409).json({ message: "Email already exists" });
       }
-      else if (error instanceof Error && error.message === "USERNAME_ALREADY_EXISTS") {
-        return res.status(409).json({ message: "Username already exists" });
-      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -42,6 +39,31 @@ class AuthController {
       else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
         return res.status(401).json({ message: "Invalid password credentials" });
       }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async authWithGoogle(req: Request, res: Response): Promise<Response> {
+    try {
+      const { idToken } = req.body;
+      const response: AuthResponseDto = await this.authService.authWithGoogle(idToken);
+      return res.status(200).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "GOOGLE_AUTH_FAILED") {
+        return res.status(401).json({ message: "Google authentication failed" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async checkEmailAvailability(req: Request, res: Response): Promise<Response> {
+    try {
+      const email: string = req.query.email as string;
+      const isAvailable: boolean = await this.authService.checkEmailAvailability(email);
+      return res.status(200).json({ available: isAvailable });
+    }
+    catch (error) {
       return res.status(500).json({ message: "Internal server error" });
     }
   }

@@ -14,8 +14,8 @@ export class UserMapper {
       googlePictureUrl: entity.googlePictureUrl,
       ban: entity.ban,
       userType: entity.user_type,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt
+      createdAt: entity.dataValues.created_at,
+      updatedAt: entity.dataValues.updated_at
     };
   }
 
