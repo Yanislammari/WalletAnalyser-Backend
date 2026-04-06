@@ -1,10 +1,11 @@
 import { BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
+import { AZURE_BLOB_STORAGE_CONNECTION_STRING } from '../constants/env';
 
 class AzureBlobService {
   private readonly blobServiceClient: BlobServiceClient;
 
-  constructor(connectionString: string) {
-    this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+  constructor() {
+    this.blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_BLOB_STORAGE_CONNECTION_STRING);
   }
 
   public async getFile(containerName: string, folderName: string, fileName: string): Promise<Buffer> {
