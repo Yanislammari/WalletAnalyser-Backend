@@ -32,13 +32,12 @@ export class GoogleOAuthService {
     let user: User | null = await this.userRepository.getByEmail(payload.email);
     if (!user) {
       const newUser: User = {
-        id: "",
         first_name: payload.given_name || "",
         last_name: payload.family_name || "",
         email: payload.email,
         password: null,
-        googleId: payload.sub,
-        googlePictureUrl: payload.picture || null,
+        google_id: payload.sub,
+        google_picture_url: payload.picture || null,
         ban: false,
         user_type: UserType.USER,
         subscribe: false,

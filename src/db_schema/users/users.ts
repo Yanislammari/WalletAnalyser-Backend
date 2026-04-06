@@ -21,8 +21,8 @@ export class User extends Model {
   public id!: string;
   public email!: string;
   public password!: string | null;
-  public googleId!: string | null;
-  public googlePictureUrl!: string | null; 
+  public google_id!: string | null;
+  public google_picture_url!: string | null; 
   public first_name!: string;
   public last_name!: string;
   public ban!: boolean;
@@ -54,7 +54,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true
     },
-    google_id: {
+    googleId: {
       type: DataTypes.STRING,
       allowNull: true,
       unique: {

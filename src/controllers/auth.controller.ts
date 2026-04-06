@@ -45,7 +45,7 @@ class AuthController {
 
   public async authWithGoogle(req: Request, res: Response): Promise<Response> {
     try {
-      const { idToken } = req.body;
+      const idToken = req.body.token;
       const response: AuthResponseDto = await this.authService.authWithGoogle(idToken);
       return res.status(200).json(response);
     }
