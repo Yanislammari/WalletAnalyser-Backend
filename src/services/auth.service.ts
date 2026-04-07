@@ -102,7 +102,7 @@ export class AuthService {
       const hashedPassword: string = await bcrypt.hash(password, salt);
 
       user.password = hashedPassword;
-      await this.userRepository.update(user.id, user);
+      await this.userRepository.update(user.id, { password: hashedPassword });
     }
     catch (error: any) {
       if (error.name === "TokenExpiredError") {
