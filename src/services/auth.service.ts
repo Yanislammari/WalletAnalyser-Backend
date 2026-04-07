@@ -115,6 +115,26 @@ export class AuthService {
     }
   }
 
+  public async verifyToken(token: string): Promise<User> {
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+      const user: User | null = await this.userRepository.getById(decoded.id);
+      if (!user) {
+        throw new Error("USER_NOT_FOUND");
+      }
+      return user;
+    }
+    catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        throw new Error("TOKEN_EXPIRED");
+      }
+      if (error.name === "JsonWebTokenError") {
+        throw new Error("INVALID_TOKEN");
+      }
+      throw new Error("TOKEN_VERIFICATION_FAILED");
+    }
+  }
+
   public async checkEmailAvailability(email: string): Promise<boolean> {
     const user: User | null = await this.userRepository.getByEmail(email);
     return user ? false : true;
