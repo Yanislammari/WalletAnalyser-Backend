@@ -8,20 +8,20 @@ class AzureBlobService {
     this.blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_BLOB_STORAGE_CONNECTION_STRING);
   }
 
-  public async getFile(containerName: string, folderName: string, fileName: string): Promise<Buffer> {
+  public async getFile(containerName: string, fileName: string, folderName?: string): Promise<Buffer> {
     const containerClient: ContainerClient = this.blobServiceClient.getContainerClient(containerName);
-    const blobPath = `${folderName}/${fileName}`;
+    const blobPath = folderName ? `${folderName}/${fileName}` : fileName;
     const blockBlobClient: BlockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
     const downloadResponse = await blockBlobClient.download();
     return this.streamToBuffer(downloadResponse.readableStreamBody ?? null);
   }
 
-  public async uploadFile(containerName: string, folderName: string, fileName: string, buffer: Buffer, mimeType: string): Promise<string> {
+  public async uploadFile(containerName: string, fileName: string, buffer: Buffer, mimeType: string, folderName?: string): Promise<string> {
     const containerClient: ContainerClient = this.blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
 
-    const blobPath = `${folderName}/${fileName}`;
+    const blobPath = folderName ? `${folderName}/${fileName}` : fileName;
     const blockBlobClient: BlockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
     await blockBlobClient.uploadData(buffer, {
@@ -31,9 +31,9 @@ class AzureBlobService {
     return blockBlobClient.url;
   }
 
-  public async deleteFile(containerName: string, folderName: string, fileName: string): Promise<void> {
+  public async deleteFile(containerName: string, fileName: string, folderName?: string): Promise<void> {
     const containerClient: ContainerClient = this.blobServiceClient.getContainerClient(containerName);
-    const blobPath = `${folderName}/${fileName}`;
+    const blobPath = folderName ? `${folderName}/${fileName}` : fileName;
     const blockBlobClient: BlockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
     const deleted = await blockBlobClient.deleteIfExists();
@@ -61,8 +61,8 @@ class AzureBlobService {
     return Buffer.from(content, encoding);
   }
 
-  public async getFileAsString(containerName: string, folderName: string, fileName: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
-    const buffer = await this.getFile(containerName, folderName, fileName);
+  public async getFileAsString(containerName: string, fileName: string, encoding: BufferEncoding = 'utf-8', folderName?: string): Promise<string> {
+    const buffer = await this.getFile(containerName, fileName, folderName);
     return this.bufferToString(buffer, encoding);
   }
 }

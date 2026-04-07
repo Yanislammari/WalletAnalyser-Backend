@@ -12,6 +12,7 @@ const AuthRoutes = (): Router => {
   router.post("/login", ValidatorMiddleware(LoginSchema), (req, res) => authController.login(req, res));
   router.post("/google", (req, res) => authController.authWithGoogle(req, res));
   router.post("/check-email", async (req, res) => authController.checkEmailAvailability(req, res));
+  router.post("/send-reset-password-email", async (req, res) => authController.sendResetPasswordEmail(req, res));
 
   return router;
 }

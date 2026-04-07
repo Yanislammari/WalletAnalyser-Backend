@@ -7,16 +7,20 @@ import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { GoogleOAuthService } from "./google.oauth.service";
+import TokenPayloadUser from "../config/token_payload";
+import MailSendingService from "./mail.sending.service";
 
 export class AuthService {
   private readonly userRepository: UserRepository;
   private readonly userMapper: UserMapper;
   private readonly googleOAuthService: GoogleOAuthService;
+  private readonly mailSendingService: MailSendingService;
 
   constructor() {
     this.userRepository = new UserRepository();
     this.userMapper = new UserMapper();
     this.googleOAuthService = new GoogleOAuthService();
+    this.mailSendingService = new MailSendingService();
   }
 
   public async login(request: LoginRequestDto): Promise<AuthResponseDto> {  
@@ -69,6 +73,45 @@ export class AuthService {
     }
     catch (error: any) {
       throw new Error("GOOGLE_AUTH_FAILED");
+    }
+  }
+
+  public async sendResetPasswordEmail(email: string): Promise<void> {
+    try {
+      await this.mailSendingService.sendResetPasswordEmail(email);
+    }
+    catch (error: any) {
+      console.log(error);
+      if (error.message === "EMAIL_NOT_FOUND") {
+        throw new Error("EMAIL_NOT_FOUND");
+      }
+      throw new Error("SEND_RESET_PASSWORD_EMAIL_FAILED");
+    }
+  }
+
+  public async resetPassword(password: string, token: string): Promise<void> {
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+
+      const user: User | null = await this.userRepository.getById(decoded.id);
+      if (!user) {
+        throw new Error("INVALID_TOKEN");
+      }
+
+      const salt: string = await bcrypt.genSalt(SALT_ROUNDS);
+      const hashedPassword: string = await bcrypt.hash(password, salt);
+
+      user.password = hashedPassword;
+      await this.userRepository.update(user.id, user);
+    }
+    catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        throw new Error("TOKEN_EXPIRED");
+      }
+      if (error.name === "JsonWebTokenError") {
+        throw new Error("INVALID_TOKEN");
+      }
+      throw new Error("RESET_PASSWORD_FAILED");
     }
   }
 

@@ -67,6 +67,20 @@ class AuthController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+
+  public async sendResetPasswordEmail(req: Request, res: Response): Promise<Response> {
+    try {
+      const email: string = req.body.email;
+      await this.authService.sendResetPasswordEmail(email);
+      return res.status(200).json({ message: "Reset password email sent" });
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "EMAIL_NOT_FOUND") {
+        return res.status(404).json({ message: "Email not found" });
+      }
+      return res.status(500).json({ message: "Failed to send reset password email" });
+    }
+  }
 }
 
 export default AuthController;
