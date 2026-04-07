@@ -13,6 +13,7 @@ const AuthRoutes = (): Router => {
   router.post("/google", (req, res) => authController.authWithGoogle(req, res));
   router.post("/check-email", async (req, res) => authController.checkEmailAvailability(req, res));
   router.post("/send-reset-password-email", async (req, res) => authController.sendResetPasswordEmail(req, res));
+  router.post("/reset-password", async (req, res) => authController.resetPassword(req, res));
 
   return router;
 }

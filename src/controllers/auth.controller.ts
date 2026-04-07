@@ -81,6 +81,24 @@ class AuthController {
       return res.status(500).json({ message: "Failed to send reset password email" });
     }
   }
+
+  public async resetPassword(req: Request, res: Response): Promise<Response> {
+    try {
+      const token: string = req.body.token;
+      const newPassword: string = req.body.newPassword;
+      await this.authService.resetPassword(token, newPassword);
+      return res.status(200).json({ message: "Password reset successful" });
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "INVALID_TOKEN") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+      else if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        return res.status(400).json({ message: "Token expired" });
+      }
+      return res.status(500).json({ message: "Failed to reset password" });
+    }
+  }
 }
 
 export default AuthController;
