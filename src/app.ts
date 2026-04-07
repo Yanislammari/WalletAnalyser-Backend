@@ -1,8 +1,8 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
-import ExcelService from "./services/excel.service";
+import { ExcelService } from "./services/excel.service";
 import AuthRoutes from "./routes/auth.routes";
 
 dotenv.config();

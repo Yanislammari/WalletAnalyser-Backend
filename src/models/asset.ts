@@ -13,11 +13,11 @@ export class AssetInfoModel {
 }
 
 export class AssetDatabaseModel {
-  base_currency_uuid : string | null;
+  base_currency_uuid: string | null;
   official_name: string;
   ticker_name: string;
   exchange_code: string;
-  asset_type : string;
+  asset_type: string;
 
   constructor(base_currency_uuid: string | null, official_name: string, ticker_name: string, exchange_code: string, type: string) {
     this.base_currency_uuid = base_currency_uuid;
@@ -30,10 +30,10 @@ export class AssetDatabaseModel {
 
 export class AssetPriceCompletModel {
   date: Date;
-  adj_close : number;
+  adj_close: number;
   price_currency: string;
-  asset_type : string;
-  
+  asset_type: string;
+
   constructor(date: Date, price: number, currency: string, asset_type: string) {
     this.date = date;
     this.adj_close = price;
@@ -44,7 +44,7 @@ export class AssetPriceCompletModel {
 
 export class AssetPriceModel {
   date: Date;
-  adj_close : number;
+  adj_close: number;
 
   constructor(date: Date, price: number) {
     this.date = date;
