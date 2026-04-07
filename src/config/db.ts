@@ -20,7 +20,7 @@ export const sequelize = new Sequelize(DATABASE_URL, {
 
 export async function startOfDatabase() {
   await sequelize
-    .sync({})
+    .sync({ alter: true })
     .then(() => {
       console.log("Database and tables have been synchronized");
     })

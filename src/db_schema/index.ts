@@ -10,4 +10,6 @@ export * from "./sector/sector";
 export * from "./sector/sector_allias";
 export * from "./sector/sector_concentration";
 export * from "./asset/asset_price";
+export * from "./users/users";
+export * from "./users/user_type";
 export * from "./rfr";

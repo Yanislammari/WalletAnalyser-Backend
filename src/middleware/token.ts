@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import UserSchema from "../db_schema/users";
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { User } from '../db_schema';
 
 import dotenv from "dotenv";
 
@@ -16,7 +16,7 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
 
   try {
     const decoded = jwt.verify(token, TOKEN_KEY);
-    const user = await UserSchema.findOne({ where: { uuid: (decoded as { uuid: string }).uuid } });
+    const user = await User.findOne({ where: { uuid: (decoded as { uuid: string }).uuid } });
     if (user) {
       req.body.user = user;
       return next();

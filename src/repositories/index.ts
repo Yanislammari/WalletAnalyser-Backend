@@ -8,3 +8,4 @@ export * from "./sector/sector_concentration.repository";
 export * from "./sector/sector_allias.repository";
 export * from "./sector/sector.repository";
 export * from "./currencies.repository";
+export * from "./user.repository";
