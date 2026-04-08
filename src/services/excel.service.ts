@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
 import path from "path";
+import countries from 'world-countries';
+import fs from "fs";
 import { geographicSectorDefaultValue } from "../messages";
 import { Forex } from "../db_schema";
 import { MarketstackController } from "../controllers";
@@ -20,10 +22,13 @@ import {
 
 export class ExcelService {
   private constantPath: string = "../asset/excel/";
+
   private defaultAssetTicker: string[] = ["MSFT"]; //, "TTE","UNH","BABA","JPM","V","PG","TSM","CHT","RHHBF","T","HD","XOM","TM","BA","HSBC"] // a terme viendra d'une API officielle
-  private currenciesPath: string[] = [path.join(__dirname, this.constantPath, "official_currencies_rate.xlsx")];
+
+  private currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
   private majorCurrencies: string[] = ["USD"]; //,"EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
-  private risksFreeRatePath: string[] = [path.join(__dirname, this.constantPath, "risk_free_rate_usa.xlsx")];
+
+  private risksFreeRateFolderPath: string = path.join(__dirname, this.constantPath, "rfr");
   private stocksPath: string[] = [path.join(__dirname, this.constantPath, "official_stocks_api.xlsx")];
   private stocksSheetNameFr: string[] = ["usa_fr", "europe_fr", "world_ex_usa_fr"];
   private stocksSheetNameEn: string[] = ["usa_en", "europe_en", "world_ex_usa_en"];
@@ -31,6 +36,7 @@ export class ExcelService {
   private countryColumnIndex: number = 2;
   private sectorColumnIndex: number = 1;
   private assetNameColumnIndex: number = 0;
+
 
   private currenciesRepository: CurrenciesRepository = new CurrenciesRepository();
   private marketstackController: MarketstackController = new MarketstackController();
@@ -48,9 +54,10 @@ export class ExcelService {
   constructor() {}
 
   async addDataFromAdmin() {
+    await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
-    await this.addAdminStocksToDatabase();
     await this.addRiskFreeRateToDatabase();
+    //await this.addAdminStocksToDatabase();
   }
 
   openExcelFile(filePath: string, workSheetName: string | undefined): XLSX.WorkSheet {
@@ -101,6 +108,30 @@ export class ExcelService {
     return cell ? cell.v : "";
   }
 
+  async addCountryToDatabaseFromCSV() {
+    try{
+      const allCountries = await this.countryRepository.getAllCountries();
+      if(allCountries.length > 0) {
+        return;
+      }
+      console.log("Fetching english country from csv");
+      const countryData = countries.map(c => {
+      return {
+        englishName: c.name.common,
+        code2: c.cca2,
+        code3: c.cca3
+        };
+      });
+      for(const c of countryData){
+        const country = await this.countryRepository.addCountryToDatabase(c.englishName);
+        await this.countryAlliasRepository.addCountryAlliasToDatabase(country.uuid, c.code2);
+        await this.countryAlliasRepository.addCountryAlliasToDatabase(country.uuid, c.code3);
+      }
+    } catch(e) {
+      console.error("Error adding country to db", e);
+    }
+  }
+
   async addCurrenciesToDatabase() {
     try {
       const euroBaseCurrency = await this.currenciesRepository.addCurrencyToDb("EUR" as string);
@@ -133,6 +164,7 @@ export class ExcelService {
     const isMajor = this.majorCurrencies.includes(quoteCurrencyName);
     for (let j = 1; j < forexRates.length; j++) {
       if (dates[j] <= latestDate) {
+        //console.log("Stop running at index", j , "for currency", quoteCurrencyName);
         break;
       }
       const dayOfWeek = dates[j].getDay();
@@ -233,53 +265,53 @@ export class ExcelService {
     }
   }
 
-  async intializeCoutryAllias() {
-    const USAcoutnryUuid = await this.countryRepository.getCountryByName("United States");
-    if (USAcoutnryUuid?.uuid) {
-      await this.countryAlliasRepository.addCountryAlliasToDatabase(USAcoutnryUuid?.uuid, "USA");
-    }
-  }
-
   async addRiskFreeRateToDatabase() {
     try {
-      await this.intializeCoutryAllias();
-      for (const path of this.risksFreeRatePath) {
-        const worksheet = this.openExcelFile(path, undefined);
-        const range = this.getExcelSize(worksheet);
-
-        const percent_rates = this.readExcelColumn(worksheet, 1, range);
-        const countryUuid = await this.countryRepository.getCountryByName(percent_rates[0]); // percent rate first value store in fact a country name
-        const dates = this.readExcelColumn(worksheet, 0, range).map(date => this.dateService.transformExcelDateToDbDate(date));
-        if (!countryUuid?.uuid) {
-          throw Error("Cant get a country for rfr");
+      fs.readdir(this.risksFreeRateFolderPath, (err, files) => {
+        if (err) {
+          return console.error('Error reading folder:', err);
         }
+        files.forEach(async file => {
+          const filePath = path.join(this.risksFreeRateFolderPath, file);
+          const worksheet = this.openExcelFile(filePath, undefined);
+          const range = this.getExcelSize(worksheet);
 
-        const seenMonths = new Set();
-        const latestRate = await this.rfrRepository.getLatestRfr(countryUuid.uuid);
-        let latestDate = new Date(0);
-        if (latestRate) {
-          latestDate = latestRate.rfr_date;
-          const monthKey = `${latestDate.getFullYear()}-${latestDate.getMonth()}`;
-          seenMonths.add(monthKey);
-        }
-
-        for (let i = dates.length - 1; i > 0; i--) {
-          if (dates[i] <= latestDate) {
-            break;
+          const percent_rates = this.readExcelColumn(worksheet, 1, range);
+          const countryUuid = await this.countryRepository.getCountryByName(path.parse(filePath).name.split("_")[1]); // we suppose that the file name is like rfr_countryname.xlsx
+          const dates = this.readExcelColumn(worksheet, 0, range).map(date => this.dateService.transformExcelDateToDbDate(date));
+          if (!countryUuid?.uuid) {
+            throw Error("Cant get a country for rfr");
           }
-          const parsedValue = parseFloat(percent_rates[i]);
-          const d = new Date(dates[i]);
-          if (Number.isNaN(parsedValue)) continue;
 
-          const monthKey = `${d.getFullYear()}-${d.getMonth()}`; // unique per month
-          if (!seenMonths.has(monthKey)) {
+          const seenMonths = new Set();
+          const latestRate = await this.rfrRepository.getLatestRfr(countryUuid.uuid);
+          let latestDate = new Date(0);
+          if (latestRate) {
+            latestDate = latestRate.rfr_date;
+            const monthKey = `${latestDate.getFullYear()}-${latestDate.getMonth()}`;
             seenMonths.add(monthKey);
-            await this.rfrRepository.addRfrToDb(countryUuid.uuid, dates[i], parsedValue);
           }
-        }
-      }
+
+          for (let i = dates.length - 1; i > 0; i--) {
+            if (dates[i] <= latestDate) {
+              //console.log("Stop running at index", i-dates.length+1, "for country", countryUuid.country_name);
+              break;
+            }
+            const parsedValue = parseFloat(percent_rates[i]);
+            const d = new Date(dates[i]);
+            if (Number.isNaN(parsedValue)) continue;
+
+            const monthKey = `${d.getFullYear()}-${d.getMonth()}`; // unique per month
+            if (!seenMonths.has(monthKey)) {
+              seenMonths.add(monthKey);
+              await this.rfrRepository.addRfrToDb(countryUuid.uuid, dates[i], parsedValue);
+            }
+          }
+        });
+      });
     } catch (e) {
       console.error("Error adding rfr to the database:", e);
     }
   }
 }
+

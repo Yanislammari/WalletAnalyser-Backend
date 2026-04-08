@@ -1,6 +1,9 @@
 import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
-import { Currency } from "..";
+import { Currency } from "../currencies/currency";
+import { Sector } from "../sector/sector";
+import { Country } from "../country/country";
+import { tr } from "zod/locales";
 
 export const attributesAsset = {
   uuid: "uuid",
@@ -8,7 +11,8 @@ export const attributesAsset = {
   asset_type: "asset_type",
   ticker_name: "ticker_name",
   official_name: "official_name",
-  exchange_code: "exchange_code",
+  sector_uuid: "sector_uuid",
+  country_uuid: "country_uuid",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -19,7 +23,8 @@ export class Asset extends Model {
   public asset_type!: string;
   public ticker_name!: string;
   public official_name!: string;
-  public exchange_code!: string;
+  public sector_uuid!: string;
+  public country_uuid!: string;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -41,19 +46,31 @@ Asset.init(
     },
     asset_type: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     ticker_name: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     official_name: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    exchange_code: {
-      type: DataTypes.STRING,
+    sector_uuid: {
+      type: DataTypes.UUID,
       allowNull: true,
+      references: {
+        model: Sector,
+        key: "uuid",
+      },
+    },
+    country_uuid: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: Country,
+        key: "uuid",
+      },
     },
   },
   {
@@ -62,3 +79,5 @@ Asset.init(
 );
 
 Asset.belongsTo(Currency, { as: "base_currency", foreignKey: attributesAsset.base_currency_uuid });
+Asset.belongsTo(Sector, { as: "sector", foreignKey: attributesAsset.sector_uuid });
+Asset.belongsTo(Country, { as: "country", foreignKey: attributesAsset.country_uuid });

@@ -6,7 +6,7 @@ import { ExcelService } from "./services/excel.service";
 import AuthRoutes from "./routes/auth.routes";
 
 dotenv.config();
-const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || '[]') as string[];
+//const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || '[]') as string[];
 
 const app = express();
 
@@ -19,10 +19,10 @@ async function setUpApi() {
 
 setUpApi();
 
-app.use(cors({
+/**app.use(cors({
   origin: FRONTEND_ADDRESS,
   methods: ["GET", "POST", "PUT", "DELETE"],
-}));
+}));**/
 
 app.use(express.json());
 
@@ -38,6 +38,6 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-app.use("/auth", AuthRoutes());
+//app.use("/auth", AuthRoutes());
 
 export default app;
