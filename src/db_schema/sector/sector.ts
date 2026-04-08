@@ -29,6 +29,11 @@ Sector.init(
         name: "unique_sector_constraint",
         msg: "Sector already exists in the database",
       },
+      validate: {
+        notEmpty: {
+          msg: "Sector name cannot be empty",
+        },
+      }
     },
   },
   {

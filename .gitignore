@@ -24,3 +24,4 @@ yarn-error.log*
 
 
 .command.txt
+.holdings_etf.json

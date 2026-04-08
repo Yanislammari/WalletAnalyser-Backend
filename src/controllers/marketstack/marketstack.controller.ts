@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
-import { AssetInfoModel, AssetPriceCompletModel, AssetPriceModel } from "../../models";
+import { AssetPriceCompletModel, AssetPriceModel } from "../../models";
+import { CompanyTickerDto, TickerInfoDto } from "../../dtos";
 
 dotenv.config();
 const apiKey = process.env.API_MARKETSTACK_KEY;
@@ -23,11 +24,10 @@ export class MarketstackController {
     }
   }
 
-  async fetchTickerInfo(ticker: string): Promise<AssetInfoModel> {
+  async fetchTickerInfo(ticker: string): Promise<TickerInfoDto> {
     try {
       const data = await this.fetchData(`tickerinfo?ticker=${ticker}&`);
-      const tickerData = data.data;
-      return new AssetInfoModel(tickerData.name, tickerData.ticker, tickerData.sector, tickerData.exchange_code);
+      return data.data as TickerInfoDto;
     } catch (error) {
       console.error(`Error fetching ticker info for ${ticker}:`, error);
       throw error;
@@ -50,6 +50,16 @@ export class MarketstackController {
       });
     } catch (error) {
       console.error(`Error fetching historical data for ${ticker}:`, error);
+      throw error;
+    }
+  }
+
+  async fetchTickers(): Promise<CompanyTickerDto[]> {
+    try {
+      const data = await this.fetchData(`tickerslist?limit=2500&`);
+      return  data.data as CompanyTickerDto[];
+    } catch (error) {
+      console.error(`Error fetching all tickers :`, error);
       throw error;
     }
   }

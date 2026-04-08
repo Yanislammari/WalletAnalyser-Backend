@@ -2,8 +2,7 @@ import * as XLSX from "xlsx";
 import path from "path";
 import countries from 'world-countries';
 import fs from "fs";
-import { geographicSectorDefaultValue } from "../messages";
-import { Forex } from "../db_schema";
+import { Asset, Forex, Sector } from "../db_schema";
 import { MarketstackController } from "../controllers";
 import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
 import { DateService } from ".";
@@ -19,6 +18,7 @@ import {
   SectorRepository,
   CurrenciesRepository,
 } from "../repositories";
+import { AssetType } from "../dtos";
 
 export class ExcelService {
   private constantPath: string = "../asset/excel/";
@@ -57,7 +57,7 @@ export class ExcelService {
     await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
     await this.addRiskFreeRateToDatabase();
-    //await this.addAdminStocksToDatabase();
+    await this.addAdminStocksToDatabase();
   }
 
   openExcelFile(filePath: string, workSheetName: string | undefined): XLSX.WorkSheet {
@@ -177,7 +177,7 @@ export class ExcelService {
     }
   }
 
-  getGeographicSectorFromTickerFromSpecificSheet(ticker: string, sheets: string[]): GeographicSector | null {
+  async getGeographicSectorFromTickerFromSpecificSheet(ticker: string, sheets: string[]): Promise<GeographicSector | null> {
     try {
       for (const path of this.stocksPath) {
         for (const sheetName of sheets) {
@@ -186,11 +186,11 @@ export class ExcelService {
           const rowIndexTicker = this.findRowIndexOfTicker(worksheet, this.tickersColumnIndex, range, ticker);
           if (rowIndexTicker !== -1) {
             const sector = this.readCellValue(worksheet, this.sectorColumnIndex, rowIndexTicker);
-            const country = this.readCellValue(worksheet, this.countryColumnIndex, rowIndexTicker);
+            const country = this.readCellValue( worksheet, this.countryColumnIndex, rowIndexTicker);
             return new GeographicSector(sector, country);
           }
         }
-        return new GeographicSector(geographicSectorDefaultValue, geographicSectorDefaultValue);
+        return null
       }
       return null;
     } catch (error) {
@@ -218,48 +218,68 @@ export class ExcelService {
     }
   }
 
+  async addPricesForAsset(asset: Asset) {
+    const isTickerUpToDate = await this.isAssetPriceUpToDate(asset.ticker_name);
+    if (isTickerUpToDate) {                            
+      return;
+    }
+    console.log("Fetching ticker price date", asset.ticker_name);
+    const assetPrice = await this.marketstackController.fetchHistoricalData(asset.ticker_name);
+    const assetInfoPrice = assetPrice[0] as AssetPriceCompletModel;
+    const currency = await this.currenciesRepository.getCurenciesFromDb(assetInfoPrice.price_currency);
+    await this.assetRepository.patchCurrencyUUIDAsset(asset.uuid, currency?.uuid ?? null)
+
+    const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
+    let latestDate = new Date(0);
+    if (latestPrice) {
+      latestDate = latestPrice.asset_price_date;
+    }
+    let i = 0;
+    while (i < assetPrice.length && assetPrice[i].date > latestDate) {
+      await this.assetPriceRepository.addAssetPrice(asset.uuid, assetPrice[i].date, assetPrice[i].adj_close);
+      i++;
+    }
+  }
+
   async addAdminStocksToDatabase() {
     try {
-      for (const ticker of this.defaultAssetTicker) {
-        const isTickerUpToDate = await this.isAssetPriceUpToDate(ticker);
-        if (isTickerUpToDate) {
-          continue;
-        }
-        console.log("Fetching ticker price date", ticker);
-
-        const assetInfo = await this.marketstackController.fetchTickerInfo(ticker);
-        const assetPrice = await this.marketstackController.fetchHistoricalData(ticker);
-        const assetInfoPrice = assetPrice[0] as AssetPriceCompletModel;
-        const currency = await this.currenciesRepository.getCurenciesFromDb(assetInfoPrice.price_currency);
-        const asset = await this.assetRepository.addAssetFromAssetToDatabase(
-          new AssetDatabaseModel(currency?.uuid ?? null, assetInfo.name, assetInfo.ticker, assetInfo.exchange_code, assetInfoPrice.asset_type)
-        );
-
-        const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
-        let latestDate = new Date(0);
-        if (latestPrice) {
-          latestDate = latestPrice.asset_price_date;
-        }
-        let i = 0;
-        while (i < assetPrice.length && assetPrice[i].date > latestDate) {
-          await this.assetPriceRepository.addAssetPrice(asset.uuid, assetPrice[i].date, assetPrice[i].adj_close);
-          i++;
-        }
-
-        const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker, this.stocksSheetNameEn);
-        const findFrGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(ticker, this.stocksSheetNameFr);
-        const officialSector = await this.sectorRepository.addSectorToDatabase(findFrGeographicSector?.sector ?? geographicSectorDefaultValue);
-        await this.sectorConcentrationRepository.addSectorConcentrationToDatabase(asset.uuid, officialSector.uuid, 100);
-        if (findEnGeographicSector?.sector) {
-          await this.sectorAlliasRepository.addSectorAlliasToDatabase(officialSector.uuid, findEnGeographicSector?.sector);
-          await this.sectorAlliasRepository.addSectorAlliasToDatabase(officialSector.uuid, assetInfo.sector);
-        }
-        const officialCountry = await this.countryRepository.addCountryToDatabase(findFrGeographicSector?.country ?? geographicSectorDefaultValue);
-        await this.countryConcentrationRepository.addCountryConcentrationToDatabase(asset.uuid, officialCountry.uuid, 100);
-        if (findEnGeographicSector?.country) {
-          await this.countryAlliasRepository.addCountryAlliasToDatabase(officialCountry.uuid, findEnGeographicSector?.country);
-        }
+      if((await this.assetRepository.getAllAssets()).length > 25) {
+        return;
       }
+      const tickers = await this.marketstackController.fetchTickers();
+      for(const index in tickers) {
+        const assetDatabase = new AssetDatabaseModel(
+          tickers[index].name,
+          tickers[index].ticker,
+          AssetType.STOCKS,
+          null,
+          null,
+          null,
+        );
+        const findEnGeographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(tickers[index].ticker, this.stocksSheetNameEn);
+        if(findEnGeographicSector?.sector_name){
+          let sectorInDb = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name)
+          if(!sectorInDb){
+            const tickerInfo = await this.marketstackController.fetchTickerInfo(tickers[index].ticker);
+            console.log("fetch ticker info ", tickerInfo.sector);
+            if(tickerInfo.sector != ""){
+              sectorInDb = await this.sectorRepository.addSectorToDatabase(tickerInfo.sector!);
+              if(sectorInDb.sector_name.toLowerCase() !== findEnGeographicSector?.sector_name.toLowerCase()){
+                await this.sectorAlliasRepository.addSectorAlliasToDatabase(sectorInDb.uuid, findEnGeographicSector?.sector_name);     
+              }
+            }
+          }
+          assetDatabase.sector_uuid = sectorInDb?.uuid ?? null;
+        }
+        if(findEnGeographicSector?.country_name){
+          const country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name)
+          assetDatabase.country_uuid = country?.uuid ?? null
+        }
+        const asset = await this.assetRepository.addAssetFromAssetToDatabase(assetDatabase);
+        if(this.defaultAssetTicker.includes(asset.ticker_name)) {
+          this.addPricesForAsset(asset)
+        }
+      }              
     } catch (error) {
       console.error("Error adding stocks to the database:", error);
     }

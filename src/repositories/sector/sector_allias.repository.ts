@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Sector, SectorAllias, attributesSectorAllias } from "../../db_schema";
+import { Sector, SectorAllias, attributesSector, attributesSectorAllias } from "../../db_schema";
 
 export class SectorAlliasRepository {
   constructor() {}
