@@ -7,7 +7,7 @@ export class MailjetService {
   constructor() {
     this.mailjetClient = new Mailjet({
       apiKey: MJ_API_KEY,
-      apiSecret: MJ_API_SECRET
+      apiSecret: MJ_API_SECRET,
     });
   }
 
@@ -18,20 +18,19 @@ export class MailjetService {
           {
             From: {
               Email: MJ_SENDER,
-              Name: "WalletAnalyser"
+              Name: "WalletAnalyser",
             },
             To: [
               {
                 Email: to,
-              }
+              },
             ],
             Subject: subject,
-            HTMLPart: htmlBody
-          }
-        ]
+            HTMLPart: htmlBody,
+          },
+        ],
       });
-    }
-    catch (error) {
+    } catch (error) {
       throw new Error("EMAIL_SENDING_FAILED");
     }
   }

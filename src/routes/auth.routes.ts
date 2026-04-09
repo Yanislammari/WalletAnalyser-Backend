@@ -17,6 +17,6 @@ const AuthRoutes = (): Router => {
   router.post("/verify-token", async (req, res) => authController.verifyToken(req, res));
 
   return router;
-}
+};
 
 export default AuthRoutes;

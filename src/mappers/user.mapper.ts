@@ -15,7 +15,7 @@ export class UserMapper {
       ban: entity.ban,
       userType: entity.user_type,
       createdAt: entity.dataValues.created_at,
-      updatedAt: entity.dataValues.updated_at
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 
@@ -29,7 +29,7 @@ export class UserMapper {
       user_type: UserType.USER,
       subscribe: false,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
   }
 }

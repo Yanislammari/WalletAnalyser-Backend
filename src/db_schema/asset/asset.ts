@@ -3,7 +3,6 @@ import { sequelize } from "../../config";
 import { Currency } from "../currencies/currency";
 import { Sector } from "../sector/sector";
 import { Country } from "../country/country";
-import { tr } from "zod/locales";
 
 export const attributesAsset = {
   uuid: "uuid",

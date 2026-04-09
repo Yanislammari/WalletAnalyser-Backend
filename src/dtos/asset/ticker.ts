@@ -1,6 +1,6 @@
 export enum AssetType {
   STOCKS = "equity",
-  ETF = "etf"
+  ETF = "etf",
 }
 
 export interface CompanyTickerDto {

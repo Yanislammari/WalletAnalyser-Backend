@@ -33,7 +33,7 @@ Sector.init(
         notEmpty: {
           msg: "Sector name cannot be empty",
         },
-      }
+      },
     },
   },
   {

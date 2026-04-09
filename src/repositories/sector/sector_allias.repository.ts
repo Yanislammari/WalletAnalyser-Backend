@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Sector, SectorAllias, attributesSector, attributesSectorAllias } from "../../db_schema";
+import { Sector, SectorAllias, attributesSectorAllias } from "../../db_schema";
 
 export class SectorAlliasRepository {
   constructor() {}
@@ -9,7 +9,7 @@ export class SectorAlliasRepository {
       const existingSectorAllias =
         (await SectorAllias.findOne({
           where: {
-            [attributesSectorAllias.sector_allias_name]:  {
+            [attributesSectorAllias.sector_allias_name]: {
               [Op.iLike]: sectorAlliasName,
             },
           },

@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
 import { Asset, attributesAsset } from "../../db_schema";
-import { AssetDatabaseModel, AssetInfoModel } from "../../models";
+import { AssetDatabaseModel } from "../../models";
 
 export class AssetRepository {
   constructor() {}
@@ -26,6 +26,23 @@ export class AssetRepository {
       return existingAsset;
     } catch (error) {
       console.error(`Error fetching asset with uuid ${uuid} from the database:`, error);
+      return null;
+    }
+  }
+
+  async getClosestAssetFromOfficialName(officialNameAllias: string): Promise<Asset | null> {
+    try {
+      const existingAsset =
+        (await Asset.findOne({
+          where: {
+            [attributesAsset.official_name]: {
+              [Op.iLike]: `%${officialNameAllias}%`,
+            },
+          },
+        })) || null;
+      return existingAsset;
+    } catch (error) {
+      console.error(`Error fetching asset with officialName ${officialNameAllias} from the database:`, error);
       return null;
     }
   }
@@ -66,7 +83,7 @@ export class AssetRepository {
 
   async addAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
     try {
-      if(asset.ticker_name === null && asset.official_name === null) {
+      if (asset.ticker_name === null && asset.official_name === null) {
         throw new Error("Both ticker_name and official_name cannot be null");
       }
       const existingAsset = await this.getAssetFromTicker(asset.ticker_name ?? "");
@@ -92,7 +109,7 @@ export class AssetRepository {
     }
   }
 
-  async patchCurrencyUUIDAsset(asset_uuid  : string, base_currency_uuid : string | null): Promise<Asset | null> {
+  async patchCurrencyUUIDAsset(asset_uuid: string, base_currency_uuid: string | null): Promise<Asset | null> {
     try {
       await Asset.update(
         {
@@ -109,6 +126,31 @@ export class AssetRepository {
     } catch (error) {
       console.error(`Error patching asset with uuid ${asset_uuid} in the database:`, error);
       return null;
-    }   
+    }
+  }
+
+  async patchAssetInfo(asset_uuid: string, asset: AssetDatabaseModel): Promise<Asset | null> {
+    try {
+      await Asset.update(
+        {
+          [attributesAsset.base_currency_uuid]: asset.base_currency_uuid,
+          [attributesAsset.asset_type]: asset.asset_type,
+          [attributesAsset.official_name]: asset.official_name,
+          [attributesAsset.ticker_name]: asset.ticker_name,
+          [attributesAsset.sector_uuid]: asset.sector_uuid,
+          [attributesAsset.country_uuid]: asset.country_uuid,
+        },
+        {
+          where: {
+            [attributesAsset.uuid]: asset_uuid,
+          },
+        }
+      );
+      const updatedAsset = await this.getAssetFromUUID(asset_uuid);
+      return updatedAsset;
+    } catch (error) {
+      console.error(`Error patching asset with uuid ${asset_uuid} in the database:`, error);
+      return null;
+    }
   }
 }

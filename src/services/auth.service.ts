@@ -23,7 +23,7 @@ export class AuthService {
     this.mailSendingService = new MailSendingService();
   }
 
-  public async login(request: LoginRequestDto): Promise<AuthResponseDto> {  
+  public async login(request: LoginRequestDto): Promise<AuthResponseDto> {
     const user: User | null = await this.userRepository.getByEmail(request.email);
     if (!user) {
       throw new Error("INVALID_EMAIL_CREDENTIALS");
@@ -31,7 +31,7 @@ export class AuthService {
     if (!user.password) {
       throw new Error("PASSWORD_NOT_SET");
     }
-  
+
     const isPasswordValid: boolean = await bcrypt.compare(request.password, user.password);
     if (!isPasswordValid) {
       throw new Error("INVALID_PASSWORD_CREDENTIALS");
@@ -39,7 +39,7 @@ export class AuthService {
 
     return {
       token: jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "7d" }),
-      user: this.userMapper.userEntityToUserResponseDto(user)
+      user: this.userMapper.userEntityToUserResponseDto(user),
     };
   }
 
@@ -52,13 +52,13 @@ export class AuthService {
     const user: User = this.userMapper.registerRequestDtoToUserEntity(request) as User;
     const salt: string = await bcrypt.genSalt(SALT_ROUNDS);
     const hashedPassword: string = await bcrypt.hash(request.password, salt);
-    
+
     user.password = hashedPassword;
 
     const addedUser: User = await this.userRepository.add(user);
     return {
-      token: jwt.sign({ id: addedUser.id }, SECRET_KEY, { expiresIn: "7d"}),
-      user: this.userMapper.userEntityToUserResponseDto(addedUser)
+      token: jwt.sign({ id: addedUser.id }, SECRET_KEY, { expiresIn: "7d" }),
+      user: this.userMapper.userEntityToUserResponseDto(addedUser),
     };
   }
 
@@ -68,10 +68,9 @@ export class AuthService {
 
       return {
         token: token,
-        user: user
+        user: user,
       };
-    }
-    catch (error: any) {
+    } catch (error: any) {
       throw new Error("GOOGLE_AUTH_FAILED");
     }
   }
@@ -79,8 +78,7 @@ export class AuthService {
   public async sendResetPasswordEmail(email: string): Promise<void> {
     try {
       await this.mailSendingService.sendResetPasswordEmail(email);
-    }
-    catch (error: any) {
+    } catch (error: any) {
       console.log(error);
       if (error.message === "EMAIL_NOT_FOUND") {
         throw new Error("EMAIL_NOT_FOUND");
@@ -103,8 +101,7 @@ export class AuthService {
 
       user.password = hashedPassword;
       await this.userRepository.update(user.id, { password: hashedPassword });
-    }
-    catch (error: any) {
+    } catch (error: any) {
       if (error.name === "TokenExpiredError") {
         throw new Error("TOKEN_EXPIRED");
       }
@@ -123,8 +120,7 @@ export class AuthService {
         throw new Error("USER_NOT_FOUND");
       }
       return user;
-    }
-    catch (error: any) {
+    } catch (error: any) {
       if (error.name === "TokenExpiredError") {
         throw new Error("TOKEN_EXPIRED");
       }
