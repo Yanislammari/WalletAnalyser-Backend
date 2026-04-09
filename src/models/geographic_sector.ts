@@ -1,9 +1,9 @@
 export class GeographicSector {
-  sector: string;
-  country: string;
+  sector_name: string;
+  country_name: string;
 
-  constructor(sector: string, country: string) {
-    this.sector = sector;
-    this.country = country;
+  constructor(sector_uuid: string, country_uuid: string) {
+    this.sector_name = sector_uuid;
+    this.country_name = country_uuid;
   }
 }

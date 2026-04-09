@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
-import { AssetInfoModel, AssetPriceCompletModel, AssetPriceModel } from "../../models";
+import { AssetPriceCompletModel, AssetPriceModel } from "../../models";
+import { AssetType, CompanyTickerDto, TickerInfoDto } from "../../dtos";
 
 dotenv.config();
 const apiKey = process.env.API_MARKETSTACK_KEY;
@@ -23,11 +24,10 @@ export class MarketstackController {
     }
   }
 
-  async fetchTickerInfo(ticker: string): Promise<AssetInfoModel> {
+  async fetchTickerInfo(ticker: string): Promise<TickerInfoDto> {
     try {
       const data = await this.fetchData(`tickerinfo?ticker=${ticker}&`);
-      const tickerData = data.data;
-      return new AssetInfoModel(tickerData.name, tickerData.ticker, tickerData.sector, tickerData.exchange_code);
+      return data.data as TickerInfoDto;
     } catch (error) {
       console.error(`Error fetching ticker info for ${ticker}:`, error);
       throw error;
@@ -38,18 +38,30 @@ export class MarketstackController {
     try {
       const data = await this.fetchData(`tickers/${ticker}/eod?limit=10000&`);
       const priceDate = data.data.eod;
+      const name = data.data.name;
+      const symbol = data.data.symbol;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return priceDate.map((item: any, index: number) => {
         if (index === 0) {
-          const asset_type = item.asset_type ?? "Stock";
+          const asset_type = item.asset_type ?? AssetType.STOCKS;
           const price_currency = item.price_currency ?? "USD";
-          return new AssetPriceCompletModel(new Date(item.date), item.adj_close, price_currency, asset_type);
+          return new AssetPriceCompletModel(new Date(item.date), item.adj_close, price_currency, asset_type, symbol, name);
         }
 
         return new AssetPriceModel(new Date(item.date), item.adj_close);
       });
     } catch (error) {
       console.error(`Error fetching historical data for ${ticker}:`, error);
+      throw error;
+    }
+  }
+
+  async fetchTickers(): Promise<CompanyTickerDto[]> {
+    try {
+      const data = await this.fetchData(`tickerslist?limit=2500&`);
+      return data.data as CompanyTickerDto[];
+    } catch (error) {
+      console.error(`Error fetching all tickers :`, error);
       throw error;
     }
   }

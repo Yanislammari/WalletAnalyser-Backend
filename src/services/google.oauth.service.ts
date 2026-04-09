@@ -21,7 +21,7 @@ export class GoogleOAuthService {
   public async authWithGoogle(idToken: string): Promise<AuthResponseDto> {
     const ticket: LoginTicket = await this.googleOAuthClient.verifyIdToken({
       idToken: idToken,
-      audience: OAUTH_CLIENT_ID
+      audience: OAUTH_CLIENT_ID,
     });
 
     const payload: TokenPayload | undefined = ticket.getPayload();
@@ -42,7 +42,7 @@ export class GoogleOAuthService {
         user_type: UserType.USER,
         subscribe: false,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       } as User;
 
       user = await this.userRepository.add(newUser);
@@ -50,7 +50,7 @@ export class GoogleOAuthService {
 
     return {
       token: jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "7d" }),
-      user: this.userMapper.userEntityToUserResponseDto(user)
-    }
+      user: this.userMapper.userEntityToUserResponseDto(user),
+    };
   }
 }

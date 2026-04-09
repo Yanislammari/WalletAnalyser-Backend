@@ -1,5 +1,5 @@
-import { BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
-import { AZURE_BLOB_STORAGE_CONNECTION_STRING } from '../constants/env';
+import { BlobServiceClient, BlockBlobClient, ContainerClient } from "@azure/storage-blob";
+import { AZURE_BLOB_STORAGE_CONNECTION_STRING } from "../constants/env";
 
 class AzureBlobService {
   private readonly blobServiceClient: BlobServiceClient;
@@ -43,25 +43,25 @@ class AzureBlobService {
   }
 
   private async streamToBuffer(readableStream: NodeJS.ReadableStream | null | undefined): Promise<Buffer> {
-    if (!readableStream) throw new Error('Readable stream is null or undefined');
+    if (!readableStream) throw new Error("Readable stream is null or undefined");
 
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      readableStream.on('data', (data) => chunks.push(Buffer.from(data)));
-      readableStream.on('end', () => resolve(Buffer.concat(chunks)));
-      readableStream.on('error', reject);
+      readableStream.on("data", data => chunks.push(Buffer.from(data)));
+      readableStream.on("end", () => resolve(Buffer.concat(chunks)));
+      readableStream.on("error", reject);
     });
   }
 
-  public async bufferToString(buffer: Buffer, encoding: BufferEncoding = 'utf-8'): Promise<string> {
+  public async bufferToString(buffer: Buffer, encoding: BufferEncoding = "utf-8"): Promise<string> {
     return buffer.toString(encoding);
   }
 
-  public async stringToBuffer(content: string, encoding: BufferEncoding = 'utf-8'): Promise<Buffer> {
+  public async stringToBuffer(content: string, encoding: BufferEncoding = "utf-8"): Promise<Buffer> {
     return Buffer.from(content, encoding);
   }
 
-  public async getFileAsString(containerName: string, fileName: string, encoding: BufferEncoding = 'utf-8', folderName?: string): Promise<string> {
+  public async getFileAsString(containerName: string, fileName: string, encoding: BufferEncoding = "utf-8", folderName?: string): Promise<string> {
     const buffer = await this.getFile(containerName, fileName, folderName);
     return this.bufferToString(buffer, encoding);
   }

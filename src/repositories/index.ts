@@ -4,6 +4,7 @@ export * from "./country/country_concentration.repository";
 export * from "./country/country_allias.repository";
 export * from "./asset/asset.repository";
 export * from "./asset/asset_price.repository";
+export * from "./asset/etf_holding.repository";
 export * from "./sector/sector_concentration.repository";
 export * from "./sector/sector_allias.repository";
 export * from "./sector/sector.repository";
