@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, LoginRequestAdmin2FaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 
 class AuthController {
   private readonly authService: AuthService;
@@ -17,6 +17,43 @@ class AuthController {
     } catch (error) {
       if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
         return res.status(409).json({ message: "Email already exists" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async login2FaAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const request: LoginRequestAdmin2FaDto = req.body;
+      console.log(request.token);
+      const response: AuthResponseDto = await this.authService.login2FaAdmin(request.code, request.token);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TIME_EXPIRE") {
+        return res.status(401).json({ message: "The code has expired, please get a new one" });
+      }
+      else if (error instanceof Error && error.message === "WRONG_CODE") {
+        return res.status(401).json({ message: "The code is wrong" });
+      } else if (error instanceof Error && error.message === "jwt expired") {
+        return res.status(401).json({ message: "The token has expired, you need to login again" });
+      }
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async loginAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const request: LoginRequestDto = req.body;
+      const response: AuthResponseDto = await this.authService.loginAdmin(request);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_EMAIL_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid email credentials" });
+      } else if (error instanceof Error && error.message === "PASSWORD_NOT_SET") {
+        return res.status(401).json({ message: "Password not set for this user" });
+      } else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid password credentials" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }

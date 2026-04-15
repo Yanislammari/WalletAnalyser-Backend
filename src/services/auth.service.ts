@@ -1,14 +1,19 @@
 import { SECRET_KEY } from "../constants/env";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
+import { store2FA } from "../config/store";
 import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { GoogleOAuthService } from "./google.oauth.service";
 import TokenPayloadUser from "../config/token_payload";
 import MailSendingService from "./mail.sending.service";
+import UserType from "../db_schema/users/user_type";
+import { Token2FAPayload, Store2FAPayload } from "../config/2FA_token_payload";
+
 
 export class AuthService {
   private readonly userRepository: UserRepository;
@@ -21,6 +26,74 @@ export class AuthService {
     this.userMapper = new UserMapper();
     this.googleOAuthService = new GoogleOAuthService();
     this.mailSendingService = new MailSendingService();
+  }
+
+  hashedCode = (code : string) => {
+    return crypto
+      .createHmac("sha256", SECRET_KEY)
+      .update(code)
+      .digest("hex");
+  }
+
+  public async login2FaAdmin(code : string , token : string): Promise<AuthResponseDto> {
+    const decoded = jwt.verify(token, SECRET_KEY) as Token2FAPayload;
+    const hashedCode = this.hashedCode(code);
+    console.log(decoded.attemptId)
+    const test = store2FA.get(decoded.attemptId);
+    console.log(test)
+    const store = store2FA.get(decoded.attemptId) as Store2FAPayload;
+    if(!store) {
+      throw new Error("NO_STORE");
+    }
+    if(store.expires > Date.now()) {
+      throw new Error("TIME_EXPIRE");
+    }
+    if(store.userId != decoded.userId) {
+      throw new Error("TIME_EXPIRE")
+    }
+    if(store.code != hashedCode){
+      throw new Error("WRONG_CODE")
+    }
+    const user = await this.userRepository.getById(decoded.userId);
+    if(!user ||user.user_type != UserType.ADMIN){
+      throw new Error("WRONG_CODE")
+    }
+    store2FA.delete(decoded.attemptId);
+    return {
+      token: jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "7d" }),
+      user: this.userMapper.userEntityToUserResponseDto(user),
+    };
+  }
+
+  public async loginAdmin(request: LoginRequestDto): Promise<AuthResponseDto> {
+    const user: User | null = await this.userRepository.getByEmail(request.email);
+    if (!user) {
+      throw new Error("INVALID_EMAIL_CREDENTIALS");
+    }
+    if (!user.password) {
+      throw new Error("PASSWORD_NOT_SET");
+    }
+
+    if(user.user_type != UserType.ADMIN) {
+      throw new Error("INVALID_PASSWORD_CREDENTIALS");
+    }
+
+    const isPasswordValid: boolean = await bcrypt.compare(request.password, user.password);
+    if (!isPasswordValid) {
+      throw new Error("INVALID_PASSWORD_CREDENTIALS");
+    }
+
+    const code = crypto.randomInt(100000, 1000000).toString();
+    this.mailSendingService.send2FAPassword(user, code);
+    const hashedCode = this.hashedCode(code);
+    const attemptId = `2fa:${crypto.randomUUID()}`;
+    console.log(attemptId);
+    store2FA.set(attemptId, { code : hashedCode, userId : user.id , expires : Date.now() + 5 * 60 * 1000 } as Store2FAPayload);
+
+    return {
+      token: jwt.sign({ attemptId, userId : user.id } as Token2FAPayload, SECRET_KEY, { expiresIn: "1d" }),
+      user: this.userMapper.userEntityToUserResponseDto(user),
+    };
   }
 
   public async login(request: LoginRequestDto): Promise<AuthResponseDto> {
@@ -41,6 +114,20 @@ export class AuthService {
       token: jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "7d" }),
       user: this.userMapper.userEntityToUserResponseDto(user),
     };
+  }
+
+  public async registerAdmin(request : RegisterRequestDto) {
+    const exinstingUser: User | null = await this.userRepository.getByEmail(request.email);
+    if (exinstingUser) {
+      return;
+    }
+    const user: User = this.userMapper.registerRequestDtoToUserEntity(request) as User;
+    user.user_type = UserType.ADMIN;
+    const salt: string = await bcrypt.genSalt(SALT_ROUNDS);
+    const hashedPassword: string = await bcrypt.hash(request.password, salt);
+    user.password = hashedPassword;
+
+    await this.userRepository.add(user);
   }
 
   public async register(request: RegisterRequestDto): Promise<AuthResponseDto> {

@@ -2,7 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
-import { ExcelService } from "./services/excel.service";
+import { ExcelService, AuthService } from "./services";
+import { UserRepository } from "./repositories";
 import AuthRoutes from "./routes/auth.routes";
 
 dotenv.config();
@@ -11,10 +12,17 @@ const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as str
 const app = express();
 
 async function setUpApi() {
+  const authService = new AuthService();
   await startOfDatabase();
 
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
+  authService.registerAdmin({
+    email: "alexisduplessis2003@gmail.com",
+    password: "MoiMeme94@",
+    firstName: "Admin",
+    lastName: "Admin",
+  })
 }
 
 setUpApi();

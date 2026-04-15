@@ -1,6 +1,13 @@
 export class DateService {
   constructor() {}
 
+  formatDateToDDMMYYYY(date: Date): string {
+    const day: string = date.getUTCDate().toString().padStart(2, "0");
+    const month: string = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+    const year: number = date.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
   transformExcelDateToDbDate(excelString: string) {
     const excelDate = new Date((parseInt(excelString) - 25569) * 86400 * 1000);
     return excelDate;
