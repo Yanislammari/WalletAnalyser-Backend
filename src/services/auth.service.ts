@@ -2,7 +2,7 @@ import { SECRET_KEY } from "../constants/env";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
 import { store2FA } from "../config/store";
-import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, FirstFaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
@@ -13,6 +13,7 @@ import TokenPayloadUser from "../config/token_payload";
 import MailSendingService from "./mail.sending.service";
 import UserType from "../db_schema/users/user_type";
 import { Token2FAPayload, Store2FAPayload } from "../config/2FA_token_payload";
+import { de } from "zod/locales";
 
 
 export class AuthService {
@@ -38,23 +39,17 @@ export class AuthService {
   public async login2FaAdmin(code : string , token : string): Promise<AuthResponseDto> {
     const decoded = jwt.verify(token, SECRET_KEY) as Token2FAPayload;
     const hashedCode = this.hashedCode(code);
-    console.log(decoded.attemptId)
-    const test = store2FA.get(decoded.attemptId);
-    console.log(test)
     const store = store2FA.get(decoded.attemptId) as Store2FAPayload;
     if(!store) {
       throw new Error("NO_STORE");
     }
-    if(store.expires > Date.now()) {
+    if(store.expires < Date.now()) {
       throw new Error("TIME_EXPIRE");
-    }
-    if(store.userId != decoded.userId) {
-      throw new Error("TIME_EXPIRE")
     }
     if(store.code != hashedCode){
       throw new Error("WRONG_CODE")
     }
-    const user = await this.userRepository.getById(decoded.userId);
+    const user = await this.userRepository.getById(store.userId);
     if(!user ||user.user_type != UserType.ADMIN){
       throw new Error("WRONG_CODE")
     }
@@ -65,7 +60,29 @@ export class AuthService {
     };
   }
 
-  public async loginAdmin(request: LoginRequestDto): Promise<AuthResponseDto> {
+  public async resendCode2FaAdmin(token : string): Promise<FirstFaDto> {
+    const decoded = jwt.verify(token, SECRET_KEY) as Token2FAPayload;
+    const store = store2FA.get(decoded.attemptId);
+    if(!store){
+      throw new Error("TIME_EXPIRE");
+    }
+    const user: User | null = await this.userRepository.getById(store?.userId);
+    if (!user) {
+      throw new Error("NO_USER");
+    }
+    store2FA.delete(decoded.attemptId)
+    const code = crypto.randomInt(100000, 1000000).toString();
+    this.mailSendingService.send2FAPassword(user, code);
+    const hashedCode = this.hashedCode(code);
+    const attemptId = `2fa:${crypto.randomUUID()}`;
+    store2FA.set(attemptId, { code : hashedCode, userId : user.id , expires : Date.now() + 5 * 60 * 1000 } as Store2FAPayload);
+
+    return {
+      token: jwt.sign({ attemptId } as Token2FAPayload, SECRET_KEY, { expiresIn: "1d" }),
+    };
+  }
+
+  public async loginAdmin(request: LoginRequestDto): Promise<FirstFaDto> {
     const user: User | null = await this.userRepository.getByEmail(request.email);
     if (!user) {
       throw new Error("INVALID_EMAIL_CREDENTIALS");
@@ -87,12 +104,10 @@ export class AuthService {
     this.mailSendingService.send2FAPassword(user, code);
     const hashedCode = this.hashedCode(code);
     const attemptId = `2fa:${crypto.randomUUID()}`;
-    console.log(attemptId);
     store2FA.set(attemptId, { code : hashedCode, userId : user.id , expires : Date.now() + 5 * 60 * 1000 } as Store2FAPayload);
 
     return {
-      token: jwt.sign({ attemptId, userId : user.id } as Token2FAPayload, SECRET_KEY, { expiresIn: "1d" }),
-      user: this.userMapper.userEntityToUserResponseDto(user),
+      token: jwt.sign({ attemptId } as Token2FAPayload, SECRET_KEY, { expiresIn: "1d" }),
     };
   }
 

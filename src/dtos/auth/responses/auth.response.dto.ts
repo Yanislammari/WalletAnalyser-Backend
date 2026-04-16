@@ -4,3 +4,8 @@ export interface AuthResponseDto {
   token: string;
   user: UserResponseDto;
 }
+
+export interface FirstFaDto {
+  token: string;
+}
+

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { AuthResponseDto, LoginRequestAdmin2FaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, FirstFaDto, LoginRequestAdmin2FaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 
 class AuthController {
   private readonly authService: AuthService;
@@ -25,17 +25,34 @@ class AuthController {
   public async login2FaAdmin(req: Request, res: Response): Promise<Response> {
     try {
       const request: LoginRequestAdmin2FaDto = req.body;
-      console.log(request.token);
       const response: AuthResponseDto = await this.authService.login2FaAdmin(request.code, request.token);
       return res.status(200).json(response);
     } catch (error) {
       if (error instanceof Error && error.message === "TIME_EXPIRE") {
-        return res.status(401).json({ message: "The code has expired, please get a new one" });
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
       }
       else if (error instanceof Error && error.message === "WRONG_CODE") {
         return res.status(401).json({ message: "The code is wrong" });
       } else if (error instanceof Error && error.message === "jwt expired") {
-        return res.status(401).json({ message: "The token has expired, you need to login again" });
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      }
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async resendCode2FaAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      if(req.body.token == ""){
+        throw Error("TIME_EXPIRE")
+      }
+      const response: FirstFaDto = await this.authService.resendCode2FaAdmin(req.body.token);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TIME_EXPIRE") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      } else if (error instanceof Error && error.message === "jwt expired") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
       }
       console.log(error)
       return res.status(500).json({ message: "Internal server error" });
@@ -45,7 +62,7 @@ class AuthController {
   public async loginAdmin(req: Request, res: Response): Promise<Response> {
     try {
       const request: LoginRequestDto = req.body;
-      const response: AuthResponseDto = await this.authService.loginAdmin(request);
+      const response: FirstFaDto = await this.authService.loginAdmin(request);
       return res.status(200).json(response);
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_EMAIL_CREDENTIALS") {
