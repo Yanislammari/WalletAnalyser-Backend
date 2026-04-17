@@ -54,7 +54,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true
     },
-    googleId: {
+    google_id: {
       type: DataTypes.STRING,
       allowNull: true,
       unique: {
