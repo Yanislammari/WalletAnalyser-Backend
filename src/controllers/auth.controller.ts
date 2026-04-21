@@ -159,6 +159,21 @@ class AuthController {
       return res.status(500).json({ message: "Failed to verify token" });
     }
   }
+
+  public async verifyTokenAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const token: string = req.body.token;
+      const user = await this.authService.verifyTokenAdmin(token);
+      return res.status(200).json( user );
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_TOKEN") {
+        return res.status(400).json({ message: "Invalid token" });
+      } else if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        return res.status(400).json({ message: "Token expired" });
+      }
+      return res.status(500).json({ message: "Failed to verify token" });
+    }
+  }
 }
 
 export default AuthController;

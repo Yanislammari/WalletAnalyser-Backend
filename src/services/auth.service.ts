@@ -2,7 +2,7 @@ import { SECRET_KEY } from "../constants/env";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
 import { store2FA } from "../config/store";
-import { AuthResponseDto, FirstFaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, FirstFaDto, LoginRequestDto, RegisterRequestDto, UserResponseDto } from "../dtos";
 import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from "bcrypt";
@@ -214,14 +214,33 @@ export class AuthService {
     }
   }
 
-  public async verifyToken(token: string): Promise<User> {
+  public async verifyToken(token: string): Promise<UserResponseDto> {
     try {
       const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
       const user: User | null = await this.userRepository.getById(decoded.id);
       if (!user) {
         throw new Error("USER_NOT_FOUND");
       }
-      return user;
+      return this.userMapper.userEntityToUserResponseDto(user);
+    } catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        throw new Error("TOKEN_EXPIRED");
+      }
+      if (error.name === "JsonWebTokenError") {
+        throw new Error("INVALID_TOKEN");
+      }
+      throw new Error("TOKEN_VERIFICATION_FAILED");
+    }
+  }
+
+  public async verifyTokenAdmin(token: string): Promise<UserResponseDto> {
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+      const user: User | null = await this.userRepository.getById(decoded.id);
+      if (!user || user.user_type != UserType.ADMIN) {
+        throw new Error("USER_NOT_FOUND");
+      }
+      return this.userMapper.userEntityToUserResponseDto(user)
     } catch (error: any) {
       if (error.name === "TokenExpiredError") {
         throw new Error("TOKEN_EXPIRED");
