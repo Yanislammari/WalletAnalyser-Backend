@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { User } from "../db_schema";
+import { attributesUser, User } from "../db_schema";
 
 import dotenv from "dotenv";
 import UserType from "../db_schema/users/user_type";
+import TokenPayloadUser from "../config/token_payload";
 
 dotenv.config();
-const TOKEN_KEY = process.env.TOKEN_KEY as string;
+const SECRET_KEY = process.env.SECRET_KEY as string;
 
 const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   const token = (req.headers["authorization"] as string)?.split(" ")[1];
@@ -16,10 +17,10 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   }
 
   try {
-    const decoded = jwt.verify(token, TOKEN_KEY);
-    const user = await User.findOne({ where: { uuid: (decoded as { uuid: string }).uuid } });
+    const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+    const user = await User.findOne({ where: { [attributesUser.id]: decoded.id }});
     if (user) {
-      req.body.user = user;
+      (req as any).user = user;
       return next();
     }
 
@@ -38,10 +39,10 @@ const verifyTokenAdmin = async (req: Request, res: Response, next: NextFunction)
   }
 
   try {
-    const decoded = jwt.verify(token, TOKEN_KEY);
-    const user = await User.findOne({ where: { uuid: (decoded as { uuid: string }).uuid } });
+    const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+    const user = await User.findOne({ where: { [attributesUser.id]: decoded.id }});
     if (user && user.user_type == UserType.ADMIN) {
-      req.body.user = user;
+      (req as any).user = user;
       return next();
     }
 

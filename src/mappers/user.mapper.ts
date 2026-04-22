@@ -13,6 +13,7 @@ export class UserMapper {
       googleId: entity.dataValues.google_id,
       googlePictureUrl: entity.dataValues.google_picture_url,
       ban: entity.ban,
+      subscribe : entity.subscribe,
       userType: entity.user_type,
       createdAt: entity.dataValues.created_at,
       updatedAt: entity.dataValues.updated_at,
@@ -28,8 +29,8 @@ export class UserMapper {
       ban: false,
       user_type: UserType.USER,
       subscribe: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
     };
   }
 }

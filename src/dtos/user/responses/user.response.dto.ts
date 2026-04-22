@@ -8,7 +8,17 @@ export interface UserResponseDto {
   googleId: string | null;
   googlePictureUrl: string | null;
   ban: boolean;
+  subscribe : boolean;
   userType: UserType;
   createdAt: Date;
   updatedAt: Date;
+}
+
+
+export interface UsersWithDataResponseDto {
+  numberOfUsers : number,
+  numberOfBanUsers : number,
+  numberOfNewMonthlyUsers : number,
+  numberOfPaidUsers : number,
+  users : UserResponseDto[]
 }
