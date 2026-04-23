@@ -7,7 +7,7 @@ import { UserRepository } from "../repositories";
 export class UserService {
   private readonly userRepository: UserRepository;
   private readonly userMapper: UserMapper;
-  private readonly userPageSideLimit = 5;
+  private readonly userPageSideLimit = 25;
 
   constructor() {
     this.userRepository = new UserRepository();

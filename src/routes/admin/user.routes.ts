@@ -1,6 +1,5 @@
 import { Router } from "express";
 import UserController from "../../controllers/users.controller";
-import { createVerifyTokenAdminMiddleware } from "../../middleware/token";
 
 const UserRoutes = (): Router => {
   const router: Router = Router();
