@@ -85,6 +85,10 @@ class AuthController {
   public async resetPassword(req: Request, res: Response): Promise<Response> {
     try {
       const token: string = req.body.token;
+      if (!token) {
+        return res.status(400).json({ message: "No token provided" });
+      }
+
       const newPassword: string = req.body.newPassword;
       await this.authService.resetPassword(token, newPassword);
       return res.status(200).json({ message: "Password reset successful" });
