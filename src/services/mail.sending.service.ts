@@ -39,7 +39,7 @@ class MailSendingService {
     await this.mailjetService.sendEmail(user.email, subject, htmlBody);
   }
 
-    public async send2FAPassword(user: User,code : string): Promise<void> {
+  public async send2FAPassword(user: User,code : string): Promise<void> {
     if (!user) {
       throw new Error("EMAIL_NOT_FOUND");
     }
@@ -50,6 +50,24 @@ class MailSendingService {
     htmlBody = htmlBody
       .replace(/\${userName}/g, `${user.first_name} ${user.last_name}` || "User")
       .replace(/\${otpCode}/g, code)
+      .replace(/\${requestedAt}/g, this.dateService.formatDateToDDMMYYYY(new Date()))
+      .replace(/\${year}/g, new Date().getFullYear().toString())
+      .replace(/\${frontendUrl}/g, FRONTEND_URL_PROD);
+
+    await this.mailjetService.sendEmail(user.email, subject, htmlBody);
+  }
+
+  public async sendPasswordToInvite(user: User,password : string): Promise<void> {
+    if (!user) {
+      throw new Error("EMAIL_NOT_FOUND");
+    }
+
+    const subject: string = "Invitation to join Wallet Analyser";
+    let htmlBody = await this.azureBlobService.getFileAsString("templates", "send-password.html");
+
+    htmlBody = htmlBody
+      .replace(/\${userName}/g, `${user.first_name} ${user.last_name}` || "User")
+      .replace(/\${password}/g, password)
       .replace(/\${requestedAt}/g, this.dateService.formatDateToDDMMYYYY(new Date()))
       .replace(/\${year}/g, new Date().getFullYear().toString())
       .replace(/\${frontendUrl}/g, FRONTEND_URL_PROD);

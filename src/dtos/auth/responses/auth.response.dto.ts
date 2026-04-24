@@ -5,6 +5,10 @@ export interface AuthResponseDto {
   user: UserResponseDto;
 }
 
+export interface SuperUserRegisterDto {
+  user : UserResponseDto;
+}
+
 export interface FirstFaDto {
   token: string;
 }
