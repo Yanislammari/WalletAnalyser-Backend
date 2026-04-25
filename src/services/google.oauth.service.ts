@@ -41,8 +41,8 @@ export class GoogleOAuthService {
         ban: false,
         user_type: UserType.USER,
         subscribe: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
       } as User;
 
       user = await this.userRepository.add(newUser);

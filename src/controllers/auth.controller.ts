@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { AuthResponseDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
+import { AuthResponseDto, FirstFaDto, LoginRequestAdmin2FaDto, LoginRequestDto, RegisterRequestDto } from "../dtos";
 
 class AuthController {
   private readonly authService: AuthService;
@@ -22,6 +22,60 @@ class AuthController {
     }
   }
 
+  public async login2FaAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const request: LoginRequestAdmin2FaDto = req.body;
+      const response: AuthResponseDto = await this.authService.login2FaAdmin(request.code, request.token);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TIME_EXPIRE") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      }
+      else if (error instanceof Error && error.message === "WRONG_CODE") {
+        return res.status(401).json({ message: "The code is wrong" });
+      } else if (error instanceof Error && error.message === "jwt expired") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      }
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async resendCode2FaAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      if(req.body.token == ""){
+        throw Error("TIME_EXPIRE")
+      }
+      const response: FirstFaDto = await this.authService.resendCode2FaAdmin(req.body.token);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TIME_EXPIRE") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      } else if (error instanceof Error && error.message === "jwt expired") {
+        return res.status(401).json({ message: "The code has expired, you need to login again" });
+      }
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async loginAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const request: LoginRequestDto = req.body;
+      const response: FirstFaDto = await this.authService.loginAdmin(request);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_EMAIL_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid email credentials" });
+      } else if (error instanceof Error && error.message === "PASSWORD_NOT_SET") {
+        return res.status(401).json({ message: "Password not set for this user" });
+      } else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
+        return res.status(401).json({ message: "Invalid password credentials" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async login(req: Request, res: Response): Promise<Response> {
     try {
       const request: LoginRequestDto = req.body;
@@ -34,6 +88,8 @@ class AuthController {
         return res.status(401).json({ message: "Password not set for this user" });
       } else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
         return res.status(401).json({ message: "Invalid password credentials" });
+      } else if (error instanceof Error && error.message === "USER_BANNED") {
+        return res.status(401).json({ message: "Your account has been banned. Please contact support for more information." });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
@@ -96,6 +152,21 @@ class AuthController {
       const token: string = req.body.token;
       const user = await this.authService.verifyToken(token);
       return res.status(200).json({ user });
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_TOKEN") {
+        return res.status(400).json({ message: "Invalid token" });
+      } else if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        return res.status(400).json({ message: "Token expired" });
+      }
+      return res.status(500).json({ message: "Failed to verify token" });
+    }
+  }
+
+  public async verifyTokenAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const token: string = req.body.token;
+      const user = await this.authService.verifyTokenAdmin(token);
+      return res.status(200).json( user );
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_TOKEN") {
         return res.status(400).json({ message: "Invalid token" });

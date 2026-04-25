@@ -28,8 +28,8 @@ export class User extends Model {
   public ban!: boolean;
   public user_type!: UserType;
   public subscribe!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
 }
 
 User.init(

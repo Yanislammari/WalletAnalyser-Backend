@@ -5,6 +5,7 @@ export const ValidatorMiddleware = (schema: ZodObject<Record<string, ZodType>>) 
   const result = schema.safeParse(req.body);
 
   if (!result.success) {
+    console.log(result.error.flatten())
     return res.status(400).json({
       message: "Validation error",
       errors: result.error.flatten(),

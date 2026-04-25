@@ -1,9 +1,11 @@
-import express from "express";
+import express, { Router } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
-import { ExcelService } from "./services/excel.service";
+import { ExcelService, AuthService } from "./services";
+import { UserRepository } from "./repositories";
 import AuthRoutes from "./routes/auth.routes";
+import AdminRoutes from "./routes/admin/admin.route";
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as string[];
@@ -11,10 +13,17 @@ const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as str
 const app = express();
 
 async function setUpApi() {
+  const authService = new AuthService();
   await startOfDatabase();
 
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
+  authService.registerAdmin({
+    email: "alexisduplessis2003@gmail.com",
+    password: "MoiMeme94@",
+    firstName: "Admin",
+    lastName: "Admin",
+  })
 }
 
 setUpApi();
@@ -22,7 +31,7 @@ setUpApi();
 app.use(
   cors({
     origin: FRONTEND_ADDRESS,
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PATCH","PUT", "DELETE"],
   })
 );
 
@@ -41,5 +50,6 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
+app.use("/admin", AdminRoutes());
 
 export default app;
