@@ -119,6 +119,9 @@ export class AuthService {
     if (!user.password) {
       throw new Error("PASSWORD_NOT_SET");
     }
+    if (user.ban == true) {
+      throw new Error("USER_BANNED");
+    }
 
     const isPasswordValid: boolean = await bcrypt.compare(request.password, user.password);
     if (!isPasswordValid) {

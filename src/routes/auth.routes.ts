@@ -9,7 +9,7 @@ const AuthRoutes = (): Router => {
   const authController = new AuthController();
 
   router.post("/register", ValidatorMiddleware(RegisterSchema), (req, res) => authController.register(req, res));
-  router.post("/login", ValidatorMiddleware(LoginSchema), (req, res) => authController.login(req, res));
+  router.post("/login", (req, res) => authController.login(req, res));
   router.post("/login_admin",(req, res) => authController.loginAdmin(req,res));
   router.post("/login_admin_2FA",(req,res)=> authController.login2FaAdmin(req,res));
   router.post("/resend_code_admin_2FA",(req,res) => authController.resendCode2FaAdmin(req,res));

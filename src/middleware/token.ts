@@ -19,14 +19,13 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
     const user = await User.findOne({ where: { [attributesUser.id]: decoded.id }});
-    if (user) {
+    if (user && user.ban == false) {
       (req as any).user = user;
       return next();
     }
 
     return res.status(401).json({ message: "Access Denied: Invalid user." }); //fail case
   } catch (e) {
-    console.log(e);
     return res.status(400).json({ message: "Invalid token." });
   }
 };
@@ -35,7 +34,7 @@ const verifyTokenAdmin = async (req: Request, res: Response, next: NextFunction)
   const token = (req.headers["authorization"] as string)?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Access Denied: No token provided." });
+    return res.status(401).json({ message: "Your session has expired. Please login again." });
   }
 
   try {
@@ -46,10 +45,9 @@ const verifyTokenAdmin = async (req: Request, res: Response, next: NextFunction)
       return next();
     }
 
-    return res.status(401).json({ message: "Access Denied: Invalid user." }); //fail case
+    return res.status(401).json({ message: "Your session has expired. Please login again." }); //fail case
   } catch (e) {
-    console.log(e);
-    return res.status(400).json({ message: "Invalid token." });
+    return res.status(400).json({ message: "Your session has expired. Please login again." });
   }
 };
 

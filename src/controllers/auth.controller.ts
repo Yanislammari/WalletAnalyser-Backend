@@ -88,6 +88,8 @@ class AuthController {
         return res.status(401).json({ message: "Password not set for this user" });
       } else if (error instanceof Error && error.message === "INVALID_PASSWORD_CREDENTIALS") {
         return res.status(401).json({ message: "Invalid password credentials" });
+      } else if (error instanceof Error && error.message === "USER_BANNED") {
+        return res.status(401).json({ message: "Your account has been banned. Please contact support for more information." });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
