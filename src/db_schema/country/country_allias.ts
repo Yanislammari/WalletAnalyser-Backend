@@ -44,5 +44,13 @@ CountryAllias.init(
   }
 );
 
-CountryAllias.belongsTo(Country, { as: "country", foreignKey: attributesCountryAllias.country_uuid });
-Country.hasMany(CountryAllias, { as: "countryAllias", foreignKey: attributesCountryAllias.country_uuid });
+CountryAllias.belongsTo(Country, { 
+  as: "country", 
+  foreignKey: attributesCountryAllias.country_uuid,
+  onDelete: "CASCADE"
+});
+
+Country.hasMany(CountryAllias, { 
+  as: "countryAllias", 
+  foreignKey: attributesCountryAllias.country_uuid
+});

@@ -56,11 +56,11 @@ export class ExcelService {
 
   async addDataFromAdmin() {
     await this.addCountryToDatabaseFromCSV();
-    await this.addCurrenciesToDatabase();
-    await this.addRiskFreeRateToDatabase();
-    await this.addAdminStocksToDatabase();
-    await this.addPricesForAdminAsset();
-    await this.addConcentrationForAdminEtf();
+    //await this.addCurrenciesToDatabase();
+    //await this.addRiskFreeRateToDatabase();
+    //await this.addAdminStocksToDatabase();
+    //await this.addPricesForAdminAsset();
+    //await this.addConcentrationForAdminEtf();
   }
 
   openExcelFile(filePath: string, workSheetName: string | undefined): XLSX.WorkSheet {

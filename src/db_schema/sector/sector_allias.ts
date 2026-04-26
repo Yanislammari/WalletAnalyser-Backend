@@ -44,5 +44,12 @@ SectorAllias.init(
   }
 );
 
-SectorAllias.belongsTo(Sector, { as: "sector", foreignKey: attributesSectorAllias.sector_uuid });
-Sector.hasMany(SectorAllias, { as: "sectorAllias", foreignKey: attributesSectorAllias.sector_uuid });
+SectorAllias.belongsTo(Sector, { 
+  as: "sector", 
+  foreignKey: attributesSectorAllias.sector_uuid,
+  onDelete: "CASCADE" 
+});
+Sector.hasMany(SectorAllias, { 
+  as: "sectorAllias", 
+  foreignKey: attributesSectorAllias.sector_uuid
+});

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { SectorService } from "../services/sector.services";
+import { SectorService } from "../services/sector/sector.services";
 import { SectorsNameDto } from "../dtos/sector/sector";
 
 class SectorController {
@@ -49,8 +49,9 @@ class SectorController {
       if (!deleted) {
         return res.status(404).json({ message: "Sector not found" });
       }
-      return res.status(204).send();
+      return res.status(200).json({ message: "Sector deleted successfully" });
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "Internal server error" });
     }
   }

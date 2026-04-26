@@ -1,6 +1,6 @@
-import { SectorRepository } from "../repositories";
-import { attributesSector, Sector } from "../db_schema";
-import { SectorNameDto, SectorsNameDto } from "../dtos/sector/sector";
+import { SectorRepository } from "../../repositories";
+import { attributesSector, Sector } from "../../db_schema";
+import { SectorNameDto, SectorsNameDto } from "../../dtos/sector/sector";
 
 export class SectorService {
   private readonly sectorRepository: SectorRepository;
