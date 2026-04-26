@@ -6,6 +6,8 @@ import { ExcelService, AuthService } from "./services";
 import { UserRepository } from "./repositories";
 import AuthRoutes from "./routes/auth.routes";
 import AdminRoutes from "./routes/admin/admin.route";
+import SectorsRoutes from "./routes/sectors.routes";
+import CountriesRoutes from "./routes/countries.routes";
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as string[];
@@ -50,6 +52,8 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
+app.use("/sector",SectorsRoutes());
+app.use("/country",CountriesRoutes());
 app.use("/admin", AdminRoutes());
 
 export default app;

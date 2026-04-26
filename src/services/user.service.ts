@@ -78,7 +78,7 @@ export class UserService {
       where : { [attributesUser.userType] : UserType.USER || UserType.SUPER_USER },
       offset : offset,
       limit : this.userPageSideLimit,
-      order: [["email", "ASC"]],
+      order: [[attributesUser.email, "ASC"]],
     })
     const users = realUsersFromDb.map(user => this.userMapper.userEntityToUserResponseDto(user))
     return users
