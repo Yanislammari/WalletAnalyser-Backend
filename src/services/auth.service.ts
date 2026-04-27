@@ -120,7 +120,7 @@ export class AuthService {
       const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
       const user: User | null = await this.userRepository.getById(decoded.id);
       if (!user) {
-        throw new Error("USER_NOT_FOUND");
+        throw new Error("INVALID_TOKEN");
       }
       return user;
     }
@@ -138,5 +138,39 @@ export class AuthService {
   public async checkEmailAvailability(email: string): Promise<boolean> {
     const user: User | null = await this.userRepository.getByEmail(email);
     return user ? false : true;
+  }
+
+  public async sendActivateAccountEmail(email: string): Promise<void> {
+    try {
+      await this.mailSendingService.sendActivateAccountEmail(email);
+    }
+    catch (error: any) {
+      console.log(error);
+      if (error.message === "EMAIL_NOT_FOUND") {
+        throw new Error("EMAIL_NOT_FOUND");
+      }
+      throw new Error("SEND_ACTIVATE_ACCOUNT_EMAIL_FAILED");
+    }
+  }
+
+  public async activateAccount(token: string): Promise<void> {
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
+      const user: User | null = await this.userRepository.getById(decoded.id);
+      if (!user) {
+        throw new Error("INVALID_TOKEN");
+      }
+
+      await this.userRepository.activateUser(user.id);
+    }
+    catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        throw new Error("TOKEN_EXPIRED");
+      }
+      if (error.name === "JsonWebTokenError") {
+        throw new Error("INVALID_TOKEN");
+      }
+      throw new Error("ACCOUNT_ACTIVATION_FAILED");
+    }
   }
 }

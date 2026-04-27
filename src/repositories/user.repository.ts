@@ -13,4 +13,8 @@ export class UserRepository extends BaseRepository<User> {
   public async getByGoogleId(googleId: string): Promise<User | null> {
     return this.model.findOne({ where: { googleId } });
   }
+
+  public async activateUser(userId: string): Promise<void> {
+    await this.model.update({ activated: true }, { where: { id: userId } });
+  }
 }
