@@ -13,6 +13,7 @@ export const attributesUser = {
   ban: "ban",
   userType: "user_type",
   subscribe: "subscribe",
+  activated: "activated",
   createdAt: "created_at",
   updatedAt: "updated_at"
 };
@@ -22,12 +23,13 @@ export class User extends Model {
   public email!: string;
   public password!: string | null;
   public google_id!: string | null;
-  public google_picture_url!: string | null; 
+  public google_picture_url!: string | null;
   public first_name!: string;
   public last_name!: string;
   public ban!: boolean;
   public user_type!: UserType;
   public subscribe!: boolean;
+  public activated!: boolean;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -54,7 +56,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true
     },
-    googleId: {
+    google_id: {
       type: DataTypes.STRING,
       allowNull: true,
       unique: {
@@ -85,6 +87,11 @@ User.init(
       defaultValue: UserType.USER
     },
     subscribe: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
+    activated: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false

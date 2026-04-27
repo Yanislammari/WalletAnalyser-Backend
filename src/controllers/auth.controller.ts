@@ -85,6 +85,10 @@ class AuthController {
   public async resetPassword(req: Request, res: Response): Promise<Response> {
     try {
       const token: string = req.body.token;
+      if (!token) {
+        return res.status(400).json({ message: "No token provided" });
+      }
+
       const newPassword: string = req.body.newPassword;
       await this.authService.resetPassword(token, newPassword);
       return res.status(200).json({ message: "Password reset successful" });
@@ -114,6 +118,41 @@ class AuthController {
         return res.status(400).json({ message: "Token expired" });
       }
       return res.status(500).json({ message: "Failed to verify token" });
+    }
+  }
+
+  public async sendActivateAccountEmail(req: Request, res: Response): Promise<Response> {
+    try {
+      const email: string = req.body.email;
+      await this.authService.sendActivateAccountEmail(email);
+      return res.status(200).json({ message: "Activate account email sent" });
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "EMAIL_NOT_FOUND") {
+        return res.status(404).json({ message: "Email not found" });
+      }
+      return res.status(500).json({ message: "Failed to send activate account email" });
+    }
+  }
+
+  public async activateAccount(req: Request, res: Response): Promise<Response> {
+    try {
+      const token: string = req.body.token;
+      if (!token) {
+        return res.status(400).json({ message: "No token provided" });
+      }
+
+      await this.authService.activateAccount(token);
+      return res.status(200).json({ message: "Account activated successfully" });
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "INVALID_TOKEN") {
+        return res.status(400).json({ message: "Invalid token" });
+      }
+      else if (error instanceof Error && error.message === "TOKEN_EXPIRED") {
+        return res.status(400).json({ message: "Token expired" });
+      }
+      return res.status(500).json({ message: "Failed to activate account" });
     }
   }
 }
