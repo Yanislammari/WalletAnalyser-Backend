@@ -1,15 +1,21 @@
-import { SectorAlliasRepository } from "../../repositories";
-import { attributesSectorAllias, SectorAllias } from "../../db_schema";
+import { SectorAlliasRepository, SectorRepository } from "../../repositories";
+import { attributesSectorAllias, Sector, SectorAllias } from "../../db_schema";
 import { SectorAlliasNameDto, SectorsAlliasNameDto } from "../../dtos/sector/sector_allias";
 
 export class SectorAlliasService {
   private readonly sectorAlliasRepository: SectorAlliasRepository;
+  private readonly sectorRepository : SectorRepository;
 
   constructor() {
     this.sectorAlliasRepository = new SectorAlliasRepository();
+    this.sectorRepository = new SectorRepository();
   }
 
   public async getAllSectorAllias(sector_uuid : string): Promise<SectorsAlliasNameDto> {
+    const sector : Sector | null = await this.sectorRepository.getById(sector_uuid);
+    if (!sector) {
+      throw new Error("Sector not found");
+    }
     const allias : SectorAlliasNameDto[] = await this.sectorAlliasRepository.get({
       where : {[attributesSectorAllias.sector_uuid] : sector_uuid},
       order: [[attributesSectorAllias.sector_allias_name, "ASC"]],
@@ -17,7 +23,7 @@ export class SectorAlliasService {
       attributesSectorAllias.uuid,
       attributesSectorAllias.sector_allias_name
     ]);
-    return { sectorsAllias: allias };
+    return { sector : sector, sectors_allias: allias };
   }
 
   public async createSectorAllias(sector_uuid: string, sector_allias_name: string): Promise<SectorAllias> {

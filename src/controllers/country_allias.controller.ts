@@ -25,6 +25,9 @@ class CountryAlliasController {
       const countryAllias = await this.countryAlliasService.createCountryAllias(country_uuid, country_allias_name);
       return res.status(201).json(countryAllias);
     } catch (error) {
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -42,6 +45,9 @@ class CountryAlliasController {
       }
       return res.status(200).json(countryAllias);
     } catch (error) {
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -53,7 +59,7 @@ class CountryAlliasController {
       if (!deleted) {
         return res.status(404).json({ message: "Country alias not found" });
       }
-      return res.status(200).json({ message: "Country alias deleted successfully" });
+      return res.status(200).json({ message: "Country allias deleted successfully" });
     } catch (error) {
       return res.status(500).json({ message: "Internal server error" });
     }

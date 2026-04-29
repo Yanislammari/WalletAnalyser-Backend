@@ -24,6 +24,9 @@ class CountryController {
       const country = await this.countryService.addCountries(country_name);
       return res.status(201).json(country);
     } catch (error) {
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -38,6 +41,9 @@ class CountryController {
       }
       return res.status(200).json(country);
     } catch (error) {
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }

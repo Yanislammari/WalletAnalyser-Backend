@@ -37,6 +37,10 @@ CountryAllias.init(
     country_allias_name: {
       type: DataTypes.STRING,
       allowNull: false,
+      unique: {
+        name: "unique_country_allias_constraint",
+        msg: "Country allias already exists in the database",
+      },
     },
   },
   {

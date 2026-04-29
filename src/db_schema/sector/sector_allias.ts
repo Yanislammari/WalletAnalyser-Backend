@@ -37,6 +37,10 @@ SectorAllias.init(
     sector_allias_name: {
       type: DataTypes.STRING,
       allowNull: false,
+      unique: {
+        name: "unique_sector_allias_constraint",
+        msg: "Sector allias already exists in the database",
+      },
     },
   },
   {

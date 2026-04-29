@@ -25,7 +25,9 @@ class SectorAlliasController {
       const sectorAllias = await this.sectorAlliasService.createSectorAllias(sector_uuid, sector_allias_name);
       return res.status(201).json(sectorAllias);
     } catch (error) {
-      console.log(error)
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -43,6 +45,9 @@ class SectorAlliasController {
       }
       return res.status(200).json(sectorAllias);
     } catch (error) {
+      if(error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
+        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -54,7 +59,7 @@ class SectorAlliasController {
       if (!deleted) {
         return res.status(404).json({ message: "Sector alias not found" });
       }
-      return res.status(200).json({ message: "Sector alias deleted successfully" });
+      return res.status(200).json({ message: "Sector allias deleted successfully" });
     } catch (error) {
       return res.status(500).json({ message: "Internal server error" });
     }
