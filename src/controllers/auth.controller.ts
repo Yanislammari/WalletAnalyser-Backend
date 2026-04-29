@@ -147,6 +147,20 @@ class AuthController {
     }
   }
 
+  public async changePasswordAdmin(req: Request, res: Response): Promise<Response> {
+    try {
+      const newPassword: string = req.body.newPassword;
+      const password : string = req.body.password;
+      await this.authService.changePassword(password, newPassword, (req as any).user.id);
+      return res.status(200).json({ message: "Password reset successful" });
+    } catch (error) {
+      if (error instanceof Error && error.message === "RESET_PASSWORD_FAILED") {
+        return res.status(500).json({ message: "An error occured, please try later" });
+      }
+      return res.status(500).json({ message: "Failed to reset password" });
+    }
+  }
+
   public async verifyToken(req: Request, res: Response): Promise<Response> {
     try {
       const token: string = req.body.token;

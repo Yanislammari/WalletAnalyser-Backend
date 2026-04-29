@@ -217,6 +217,26 @@ export class AuthService {
     }
   }
 
+  public async changePassword(password: string, newPassword : string, uuid: string): Promise<void> {
+    try {
+      const user: User | null = await this.userRepository.getById(uuid);
+      if (!user) {
+        throw new Error("RESET_PASSWORD_FAILED");
+      }
+      const salt: string = await bcrypt.genSalt(SALT_ROUNDS);
+      const isMatch = bcrypt.compare(password, user.password ?? "");
+
+      if(!isMatch){
+        console.log("WRONG PASSWORD");
+        throw new Error("RESET_PASSWORD_FAILED");
+      }
+      const hasheNewPassword: string = await bcrypt.hash(newPassword, salt);
+      await this.userRepository.update(user.id, { password: hasheNewPassword });
+    } catch (error: any) {
+      throw new Error("RESET_PASSWORD_FAILED");
+    }
+  }
+
   public async verifyToken(token: string): Promise<UserResponseDto> {
     try {
       const decoded = jwt.verify(token, SECRET_KEY) as TokenPayloadUser;
