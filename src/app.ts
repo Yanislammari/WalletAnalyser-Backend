@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService } from "./services/excel.service";
 import AuthRoutes from "./routes/auth.routes";
+import PortfolioRoutes from "./routes/portfolio.routes";
+import CurrencyRoutes from "./routes/currency.routes";
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || '[]') as string[];
@@ -39,5 +41,7 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
+app.use("/portfolio", PortfolioRoutes());
+app.use("/currency", CurrencyRoutes());
 
 export default app;

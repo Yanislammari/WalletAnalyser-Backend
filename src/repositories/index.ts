@@ -9,3 +9,7 @@ export * from "./sector/sector_allias.repository";
 export * from "./sector/sector.repository";
 export * from "./currencies.repository";
 export * from "./user.repository";
+export * from "./portfolio/portfolio.repository";
+export * from "./portfolio/user_asset_buy.repository";
+export * from "./portfolio/user_asset_sell.repository";
+export * from "./portfolio/user_asset_dividend.repository";
