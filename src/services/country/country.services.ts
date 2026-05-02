@@ -9,6 +9,14 @@ export class CountryService {
     this.countryRepository = new CountryRepository();
   }
 
+  public async getCountry(uuid : string): Promise<CountryNameDto> {
+    const country: CountryNameDto | null = await this.countryRepository.getById(uuid)
+    if(!country){
+      throw new Error("NO_COUNTRY")
+    }
+    return country
+  }
+
   public async getCountries(): Promise<CountriesNameDto> {
     const countries: CountryNameDto[] = await this.countryRepository.get({
       order: [[attributesCountry.country_name, "ASC"]],

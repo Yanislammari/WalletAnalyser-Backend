@@ -13,4 +13,5 @@ export * from "./sector/sector_allias";
 export * from "./sector/sector_concentration";
 export * from "./users/users";
 export * from "./users/user_type";
-export * from "./rfr";
+export * from "./rfr/rfr";
+export * from "./rfr/rfr_country";

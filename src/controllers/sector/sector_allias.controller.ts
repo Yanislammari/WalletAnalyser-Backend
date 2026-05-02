@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { SectorAlliasService } from "../services/sector/sector_allias.services";
+import { SectorAlliasService } from "../../services/sector/sector_allias.services";
 
 class SectorAlliasController {
   private readonly sectorAlliasService: SectorAlliasService;

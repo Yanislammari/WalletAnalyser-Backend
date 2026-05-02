@@ -1,12 +1,22 @@
 import { Request, Response } from "express";
-import { CountryService } from "../services/country/country.services";
-import { CountriesNameDto } from "../dtos/country/country";
+import { CountryService } from "../../services/country/country.services";
+import { CountriesNameDto, CountryNameDto } from "../../dtos/country/country";
 
 class CountryController {
   private readonly countryService: CountryService;
 
   constructor() {
     this.countryService = new CountryService();
+  }
+
+  public async getCountry(req: Request, res: Response): Promise<Response> {
+    try {
+      const uuid = req.params.uuid as string
+      const response: CountryNameDto = await this.countryService.getCountry(uuid);
+      return res.status(200).json({ country : response});
+    } catch (error) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 
   public async getCountries(req: Request, res: Response): Promise<Response> {

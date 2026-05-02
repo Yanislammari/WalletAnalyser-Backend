@@ -1,10 +1,11 @@
 import { DataTypes, Model } from "sequelize";
-import { sequelize } from "../config";
-import { Country } from "./country/country";
+import { sequelize } from "../../config";
+import { Country } from "../country/country";
+import { RiskFreeRateCountry } from "./rfr_country";
 
 export const attributesRfr = {
   uuid: "uuid",
-  country_uuid: "country_uuid",
+  rfr_country_uuid: "rfr_country_uuid",
   rfr_date: "rfr_date",
   rfr_percent_rate: "rfr_percent_rate",
   createdAt: "created_at",
@@ -13,7 +14,7 @@ export const attributesRfr = {
 
 export class RiskFreeRate extends Model {
   public uuid!: string;
-  public country_uuid!: string;
+  public rfr_country_uuid!: string;
   public rfr_date!: Date;
   public rfr_percent_rate!: number;
   public readonly createdAt!: Date;
@@ -27,11 +28,11 @@ RiskFreeRate.init(
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
     },
-    country_uuid: {
+    rfr_country_uuid: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: Country,
+        model: RiskFreeRateCountry,
         key: "uuid",
       },
     },
@@ -49,5 +50,5 @@ RiskFreeRate.init(
   }
 );
 
-RiskFreeRate.belongsTo(Country, { as: "country", foreignKey: attributesRfr.country_uuid });
-Country.hasMany(RiskFreeRate, { as: "riskFreeRate", foreignKey: attributesRfr.country_uuid });
+RiskFreeRate.belongsTo(Country, { as: "country", foreignKey: attributesRfr.rfr_country_uuid, onDelete: "CASCADE" });
+Country.hasMany(RiskFreeRate, { as: "riskFreeRate", foreignKey: attributesRfr.rfr_country_uuid });

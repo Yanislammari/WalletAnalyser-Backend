@@ -1,5 +1,5 @@
 import { Router } from "express";
-import SectorAlliasController from "../../controllers/sector_allias.controller";
+import SectorAlliasController from "../../../controllers/sector/sector_allias.controller";
 
 const SectorAlliasAdminRoutes = (): Router => {
   const router: Router = Router();

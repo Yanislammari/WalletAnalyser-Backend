@@ -1,5 +1,5 @@
 import { Router } from "express";
-import SectorController from "../../controllers/sectors.controller";
+import SectorController from "../../../controllers/sector/sectors.controller";
 
 const SectorsAdminRoutes = (): Router => {
   const router: Router = Router();

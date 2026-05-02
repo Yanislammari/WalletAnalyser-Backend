@@ -3,16 +3,23 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
-import { UserRepository } from "./repositories";
 import AuthRoutes from "./routes/auth.routes";
 import AdminRoutes from "./routes/admin/admin.route";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
+import multer from "multer";
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as string[];
 
 const app = express();
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
 async function setUpApi() {
   const authService = new AuthService();
@@ -37,7 +44,8 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.get("/", (_, res) => {
   res.send("PA : WalletAnalyser Backend");
@@ -57,3 +65,4 @@ app.use("/country",CountriesRoutes());
 app.use("/admin", AdminRoutes());
 
 export default app;
+

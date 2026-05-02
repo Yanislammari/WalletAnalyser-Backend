@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createVerifyTokenMiddleware } from "../middleware/token";
-import SectorController from "../controllers/sectors.controller";
+import SectorController from "../controllers/sector/sectors.controller";
 
 const SectorsRoutes = (): Router => {
   const router: Router = Router();

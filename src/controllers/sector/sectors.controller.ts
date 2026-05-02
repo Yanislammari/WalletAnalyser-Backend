@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { SectorService } from "../services/sector/sector.services";
-import { SectorsNameDto } from "../dtos/sector/sector";
+import { SectorService } from "../../services/sector/sector.services";
+import { SectorsNameDto } from "../../dtos/sector/sector";
 
 class SectorController {
   private readonly sectorService: SectorService;

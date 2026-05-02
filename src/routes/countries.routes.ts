@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createVerifyTokenMiddleware } from "../middleware/token";
-import CountryController from "../controllers/countries.controller";
+import CountryController from "../controllers/countries/countries.controller";
 
 const CountriesRoutes = (): Router => {
   const router: Router = Router();

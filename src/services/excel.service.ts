@@ -9,7 +9,6 @@ import { DateService } from ".";
 import {
   AssetRepository,
   AssetPriceRepository,
-  RfrRepository,
   CountryAlliasRepository,
   CountryRepository,
   SectorAlliasRepository,
@@ -20,6 +19,7 @@ import {
 import { AssetType } from "../dtos";
 import { ETFHolding } from "../dtos/asset/etf_concentration";
 import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LAST_POINT, TICKER_DELETE_POINT, TICKER_REPLACE_MULTIPLE_SPACES } from "../constants/regex";
+import { RfrCountryService } from "./rfr/rfr_country.service";
 
 export class ExcelService {
   private constantPath: string = "../asset/excel/";
@@ -49,7 +49,7 @@ export class ExcelService {
   private sectorAlliasRepository: SectorAlliasRepository = new SectorAlliasRepository();
   private countryRepository: CountryRepository = new CountryRepository();
   private countryAlliasRepository: CountryAlliasRepository = new CountryAlliasRepository();
-  private rfrRepository: RfrRepository = new RfrRepository();
+  private rfrCountryService : RfrCountryService = new RfrCountryService();
   private etfHoldingsRepository: EtfHoldingsRepository = new EtfHoldingsRepository();
 
   constructor() {}
@@ -339,31 +339,7 @@ export class ExcelService {
           if (!countryUuid?.uuid) {
             throw Error("Cant get a country for rfr");
           }
-
-          const seenMonths = new Set();
-          const latestRate = await this.rfrRepository.getLatestRfr(countryUuid.uuid);
-          let latestDate = new Date(0);
-          if (latestRate) {
-            latestDate = latestRate.rfr_date;
-            const monthKey = `${latestDate.getFullYear()}-${latestDate.getMonth()}`;
-            seenMonths.add(monthKey);
-          }
-
-          for (let i = dates.length - 1; i > 0; i--) {
-            if (dates[i] <= latestDate) {
-              //console.log("Stop running at index", i-dates.length+1, "for country", countryUuid.country_name);
-              break;
-            }
-            const parsedValue = parseFloat(percent_rates[i]);
-            const d = new Date(dates[i]);
-            if (Number.isNaN(parsedValue)) continue;
-
-            const monthKey = `${d.getFullYear()}-${d.getMonth()}`; // unique per month
-            if (!seenMonths.has(monthKey)) {
-              seenMonths.add(monthKey);
-              await this.rfrRepository.addRfrToDb(countryUuid.uuid, dates[i], parsedValue);
-            }
-          }
+          this.rfrCountryService.createRfrCountry(countryUuid.uuid, dates, percent_rates)
         });
       });
     } catch (e) {
