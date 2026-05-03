@@ -37,6 +37,7 @@ UserAssetDividend.init(
         model: Portfolio,
         key: "uuid",
       },
+      onDelete: "CASCADE",
     },
     currency_uuid: {
       type: DataTypes.UUID,
@@ -62,3 +63,5 @@ UserAssetDividend.init(
 
 UserAssetDividend.belongsTo(Portfolio, { as: "portfolio", foreignKey: attributesUserAssetDividend.portfolio_uuid });
 UserAssetDividend.belongsTo(Currency, { as: "currency", foreignKey: attributesUserAssetDividend.currency_uuid });
+
+Portfolio.hasMany(UserAssetDividend, { foreignKey: "portfolio_uuid", onDelete: "CASCADE", hooks: true });

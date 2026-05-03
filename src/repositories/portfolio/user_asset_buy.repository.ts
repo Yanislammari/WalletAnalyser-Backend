@@ -9,4 +9,8 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
   public async getByPortfolioId(portfolioId: string): Promise<UserAssetBuy[]> {
     return this.model.findAll({ where: { portfolio_uuid: portfolioId } });
   }
+
+  public async countByPortfolioId(portfolioId: string): Promise<number> {
+    return this.model.count({ where: { portfolio_uuid: portfolioId } });
+  }
 }

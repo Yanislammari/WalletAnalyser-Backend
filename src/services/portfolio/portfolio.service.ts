@@ -102,8 +102,53 @@ export class PortfolioService {
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
-    
+
     const assetDividend: UserAssetDividend = await this.userAssetDividendRepository.add(this.portfolioMapper.addAssetDividendDtoToEntity(request));
     return this.portfolioMapper.assetDividendEntityToDto(assetDividend);
+  }
+
+  public async getAssetCountByPortfolioId(portfolioId: string): Promise<{ buys: number; sells: number; dividends: number; total: number }> {
+    const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
+    if (!portfolio) {
+      throw new Error("PORTFOLIO_NOT_FOUND");
+    }
+
+    const [buys, sells, dividends] = await Promise.all([
+      this.userAssetBuyRepository.countByPortfolioId(portfolioId),
+      this.userAssetSellRepository.countByPortfolioId(portfolioId),
+      this.userAssetDividendRepository.countByPortfolioId(portfolioId),
+    ]);
+
+    return { buys, sells, dividends, total: buys + sells + dividends };
+  }
+
+  public async deletePortfolio(portfolioId: string): Promise<void> {
+    const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
+    if (!portfolio) {
+      throw new Error("PORTFOLIO_NOT_FOUND");
+    }
+
+    await this.portfolioRepository.remove(portfolioId);
+  }
+
+  public async deleteAssetBuy(buyId: string): Promise<void> {
+    const deleted: boolean = await this.userAssetBuyRepository.remove(buyId);
+    if (!deleted) {
+      throw new Error("BUY_NOT_FOUND");
+    }
+  }
+
+  public async deleteAssetSell(sellId: string): Promise<void> {
+    const deleted: boolean = await this.userAssetSellRepository.remove(sellId);
+    if (!deleted) {
+      throw new Error("SELL_NOT_FOUND");
+    }
+  }
+
+  public async deleteAssetDividend(dividendId: string): Promise<void> {
+    const deleted: boolean = await this.userAssetDividendRepository.remove(dividendId);
+    if (!deleted) {
+      throw new Error("DIVIDEND_NOT_FOUND");
+    }
   }
 }

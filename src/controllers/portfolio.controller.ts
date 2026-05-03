@@ -132,6 +132,76 @@ class PortfolioController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+
+  public async getAssetCountByPortfolioId(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId = req.params.portfolioId as string;
+      const response = await this.portfolioService.getAssetCountByPortfolioId(portfolioId);
+      return res.status(200).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
+        return res.status(404).json({ message: "Portfolio not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async deletePortfolio(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId = req.params.portfolioId as string;
+      await this.portfolioService.deletePortfolio(portfolioId);
+      return res.status(204).send();
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
+        return res.status(404).json({ message: "Portfolio not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async deleteAssetBuy(req: Request, res: Response): Promise<Response> {
+    try {
+      const buyId = req.params.buyId as string;
+      await this.portfolioService.deleteAssetBuy(buyId);
+      return res.status(204).send();
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "BUY_NOT_FOUND") {
+        return res.status(404).json({ message: "Asset buy not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async deleteAssetSell(req: Request, res: Response): Promise<Response> {
+    try {
+      const sellId = req.params.sellId as string;
+      await this.portfolioService.deleteAssetSell(sellId);
+      return res.status(204).send();
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "SELL_NOT_FOUND") {
+        return res.status(404).json({ message: "Asset sell not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async deleteAssetDividend(req: Request, res: Response): Promise<Response> {
+    try {
+      const dividendId = req.params.dividendId as string;
+      await this.portfolioService.deleteAssetDividend(dividendId);
+      return res.status(204).send();
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "DIVIDEND_NOT_FOUND") {
+        return res.status(404).json({ message: "Asset dividend not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
 }
 
 export default PortfolioController;

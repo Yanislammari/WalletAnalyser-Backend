@@ -45,6 +45,7 @@ UserAssetBuy.init(
         model: Portfolio,
         key: "uuid",
       },
+      onDelete: "CASCADE",
     },
     asset_price_uuid: {
       type: DataTypes.UUID,
@@ -91,3 +92,5 @@ UserAssetBuy.init(
 UserAssetBuy.belongsTo(Portfolio, { as: "portfolio", foreignKey: attributesUserAssetBuy.portfolio_uuid });
 UserAssetBuy.belongsTo(AssetPrice, { as: "asset_price", foreignKey: attributesUserAssetBuy.asset_price_uuid });
 UserAssetBuy.belongsTo(Currency, { as: "buy_currency", foreignKey: attributesUserAssetBuy.buy_currency_uuid });
+
+Portfolio.hasMany(UserAssetBuy, { foreignKey: "portfolio_uuid", onDelete: "CASCADE", hooks: true });
