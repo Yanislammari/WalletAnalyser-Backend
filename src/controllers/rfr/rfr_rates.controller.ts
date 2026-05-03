@@ -12,8 +12,17 @@ class RfrRatesController {
     try {
       const rfr_country_uuid = req.params.rfr_country_uuid as string;
       const offset = Number(req.query.offset) || 0;
-      const size = Number(req.query.size) || 10;
-      const response = await this.rfrRatesService.getAllRfrRates(rfr_country_uuid, offset, size);
+      const size = Number(req.query.size) || 100;
+      let from : Date | null = new Date(req.query.from as string)
+      let to : Date | null = new Date(req.query.to as string)
+
+      if (isNaN(from.getTime())) {
+        from = null
+      }
+      if (isNaN(to.getTime())) {
+        to = null
+      }
+      const response = await this.rfrRatesService.getAllRfrRates(rfr_country_uuid, offset, size, from, to);
       return res.status(200).json(response);
     } catch (error) {
       return res.status(500).json({ message: "Internal server error" });

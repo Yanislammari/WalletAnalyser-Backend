@@ -2,6 +2,7 @@ import { RfrRepository } from "../../repositories/rfr/rfr.repository";
 import { attributesRfr, RiskFreeRate } from "../../db_schema";
 import { RfrRateMetaData } from "../../dtos/rfr/rfr_rate";
 import { RfrCountryRepository } from "../../repositories";
+import { Op } from "sequelize";
 
 export class RfrRatesService {
   private readonly rfrRepository: RfrRepository;
@@ -12,18 +13,29 @@ export class RfrRatesService {
     this.rfrCountryRepository = new RfrCountryRepository();
   }
 
-  public async getAllRfrRates(rfr_country_uuid: string, offset : number, limit : number): Promise<RfrRateMetaData> {
+  public async getAllRfrRates(rfr_country_uuid: string, offset : number, limit : number, from : Date | null, to : Date | null): Promise<RfrRateMetaData> {
     const rfr_country = await this.rfrCountryRepository.getRfrCoutryById(rfr_country_uuid)
     if(!rfr_country){
       throw new Error("NO_RFR_COUNTRY")
     }
+    const where: any = {[attributesRfr.rfr_country_uuid]: rfr_country_uuid}
+    if (from || to) {
+      where[attributesRfr.rfr_date] = {}
+      if (from) {
+        where[attributesRfr.rfr_date][Op.gte] = from
+      }
+
+      if (to) {
+        where[attributesRfr.rfr_date][Op.lte] = to
+      }
+    }
     const rfr_rates = await this.rfrRepository.get({
-      where : {[attributesRfr.rfr_country_uuid] : rfr_country_uuid},
+        where,
         offset : offset,
         limit : limit,
         order: [[attributesRfr.rfr_date, "DESC"]],
     })
-    const length = (await this.rfrRepository.get({where : { [attributesRfr.rfr_country_uuid] : rfr_country_uuid }})).length
+    const length = (await this.rfrRepository.get({where})).length
     return { length, rfr_rates, rfr_country};
   }
 

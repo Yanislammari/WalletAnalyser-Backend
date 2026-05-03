@@ -1,11 +1,12 @@
 import { SALT_ROUNDS } from "../constants/hash";
 import { attributesUser, User } from "../db_schema";
 import UserType from "../db_schema/users/user_type";
-import { RegisterSuperUserRequestDto, SuperUserRegisterDto, UserResponseDto, UsersWithDataResponseDto } from "../dtos";
+import { RegisterSuperUserRequestDto, SuperUserRegisterDto, UserResponseDto, UsersWithDataResponseDto, UsersWithLength } from "../dtos";
 import { UserMapper } from "../mappers";
 import { UserRepository } from "../repositories";
 import bcrypt from 'bcrypt'
 import MailSendingService from "./mail.sending.service";
+import { Op } from "sequelize";
 
 function generatePassword(length = 9) {
   if (length < 4) {
@@ -43,7 +44,6 @@ export class UserService {
   private readonly userRepository: UserRepository;
   private readonly userMapper: UserMapper;
   private readonly mailService : MailSendingService;
-  private readonly userPageSideLimit = 25;
 
   constructor() {
     this.userRepository = new UserRepository();
@@ -68,20 +68,30 @@ export class UserService {
         created.getFullYear() === now.getFullYear()
       );
     }).length;
-    const usersLimit = realUsersFromDb.slice(0, this.userPageSideLimit);
+    const usersLimit = realUsersFromDb.slice(0, 100);
     const users = usersLimit.map(user => this.userMapper.userEntityToUserResponseDto(user))
-    return {numberOfUsers, numberOfBanUsers, numberOfNewMonthlyUsers, numberOfPaidUsers, users} as UsersWithDataResponseDto
+    return {numberOfUsers, numberOfBanUsers, numberOfNewMonthlyUsers, numberOfPaidUsers, users, length : numberOfUsers} as UsersWithDataResponseDto
   }
   
-  public async get_users_offset(offset : number) : Promise<UserResponseDto[]> {
+  public async get_users_offset(offset : number, limit : number, search : string) : Promise<UsersWithLength> {
     const realUsersFromDb : User[] = await this.userRepository.get({
-      where : { [attributesUser.userType] : UserType.USER || UserType.SUPER_USER },
+      where: {
+        [attributesUser.userType] : { [Op.in]: [UserType.USER, UserType.SUPER_USER] },
+        [attributesUser.email]: { [Op.startsWith]: search }
+      },
       offset : offset,
-      limit : this.userPageSideLimit,
+      limit : limit,
       order: [[attributesUser.email, "ASC"]],
     })
+
+    const length = (await this.userRepository.get({
+      where: {
+        [attributesUser.userType]: { [Op.in]: [UserType.USER, UserType.SUPER_USER] },
+        [attributesUser.email]: { [Op.startsWith]: search }
+      },
+    })).length
     const users = realUsersFromDb.map(user => this.userMapper.userEntityToUserResponseDto(user))
-    return users
+    return { length , users }
   }
 
   public async ban_user(userId : string, ban : boolean ) : Promise<UserResponseDto> {
