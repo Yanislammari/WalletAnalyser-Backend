@@ -41,9 +41,9 @@ class RfrRatesController {
       const rfrRate = await this.rfrRatesService.createRfrRate(rfr_country_uuid, new Date(rfr_date), parseFloat(rfr_percent_rate));
       return res.status(201).json(rfrRate);
     } catch (error) {
-      /**if (error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
-        return res.status(500).json({ message: "Cette valeur existe déjà" });
-      }**/
+      if (error instanceof Error && error.message === "EXIST") {
+        return res.status(500).json({ message: "Une valeur à cette date existe déjà" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -67,8 +67,8 @@ class RfrRatesController {
       }
       return res.status(200).json(rfrRate);
     } catch (error) {
-      if (error instanceof Error && error.message.includes("la valeur d'une clé dupliquée rompt la contrainte unique")) {
-        return res.status(500).json({ message: "Cette valeur existe déjà" });
+      if (error instanceof Error && error.message === "EXIST") {
+        return res.status(500).json({ message: "Une valeur à cette date existe déjà" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }

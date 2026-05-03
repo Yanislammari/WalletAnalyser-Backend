@@ -40,12 +40,21 @@ export class RfrRatesService {
   }
 
   public async createRfrRate(rfr_country_uuid: string, rfr_date: Date, rfr_percent_rate: number): Promise<RiskFreeRate> {
+    const exist = await this.rfrRepository.get({ where : { [attributesRfr.rfr_date] : rfr_date }})
+    if(exist.length != 0){
+      throw Error("EXIST")
+    }
     return await this.rfrRepository.addRfrToDb(rfr_country_uuid, rfr_date, rfr_percent_rate);
   }
 
   public async updateRfrRate(uuid: string, updateData: { rfr_date?: Date; rfr_percent_rate?: number }): Promise<RiskFreeRate | null> {
     const rfrRate = await RiskFreeRate.findByPk(uuid);
     if (!rfrRate) return null;
+
+    const exist = await this.rfrRepository.get({ where : { [attributesRfr.rfr_date] : updateData.rfr_date }})
+    if(exist.length != 0){
+      throw Error("EXIST")
+    }
 
     if (updateData.rfr_date) {
       rfrRate.rfr_date = updateData.rfr_date;
