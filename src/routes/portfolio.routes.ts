@@ -9,6 +9,7 @@ const PortfolioRoutes = (): Router => {
   router.get("/user/:userId", (req, res) => portfolioController.getPortfoliosByUserId(req, res));
   router.get("/:portfolioId", (req, res) => portfolioController.getPortfolioById(req, res));
   router.get("/:portfolioId/asset-count", (req, res) => portfolioController.getAssetCountByPortfolioId(req, res));
+  router.get("/:portfolioId/companies", (req, res) => portfolioController.getCompaniesByPortfolioId(req, res));
   router.get("/:portfolioId/buys", (req, res) => portfolioController.getBuysByPortfolioId(req, res));
   router.post("/:portfolioId/buys", (req, res) => portfolioController.addAssetBuy(req, res));
   router.get("/:portfolioId/sells", (req, res) => portfolioController.getSellsByPortfolioId(req, res));

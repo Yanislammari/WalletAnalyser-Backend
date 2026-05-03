@@ -47,33 +47,33 @@ export class PortfolioService {
     return this.portfolioMapper.portfolioEntityToDto(portfolio);
   }
 
-  public async getBuysByPortfolioId(portfolioId: string): Promise<AssetBuyResponseDto[]> {
+  public async getBuysByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetBuyResponseDto[]> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetBuys: UserAssetBuy[] = await this.userAssetBuyRepository.getByPortfolioId(portfolioId);
+    const assetBuys: UserAssetBuy[] = await this.userAssetBuyRepository.getByPortfolioId(portfolioId, from, to);
     return assetBuys.map((assetBuy) => this.portfolioMapper.assetBuyEntityToDto(assetBuy));
   }
 
-  public async getSellsByPortfolioId(portfolioId: string): Promise<AssetSellResponseDto[]> {
+  public async getSellsByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetSellResponseDto[]> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
-    
-    const assetSells: UserAssetSell[] = await this.userAssetSellRepository.getByPortfolioId(portfolioId);
+
+    const assetSells: UserAssetSell[] = await this.userAssetSellRepository.getByPortfolioId(portfolioId, from, to);
     return assetSells.map((assetSell) => this.portfolioMapper.assetSellEntityToDto(assetSell));
   }
 
-  public async getDividendsByPortfolioId(portfolioId: string): Promise<AssetDividendResponseDto[]> {
+  public async getDividendsByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetDividendResponseDto[]> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetDividends: UserAssetDividend[] = await this.userAssetDividendRepository.getByPortfolioId(portfolioId);
+    const assetDividends: UserAssetDividend[] = await this.userAssetDividendRepository.getByPortfolioId(portfolioId, from, to);
     return assetDividends.map((assetDividend) => this.portfolioMapper.assetDividendEntityToDto(assetDividend));
   }
 
@@ -105,6 +105,20 @@ export class PortfolioService {
 
     const assetDividend: UserAssetDividend = await this.userAssetDividendRepository.add(this.portfolioMapper.addAssetDividendDtoToEntity(request));
     return this.portfolioMapper.assetDividendEntityToDto(assetDividend);
+  }
+
+  public async getCompaniesByPortfolioId(portfolioId: string): Promise<string[]> {
+    const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
+    if (!portfolio) {
+      throw new Error("PORTFOLIO_NOT_FOUND");
+    }
+
+    const [buyCompanies, sellCompanies] = await Promise.all([
+      this.userAssetBuyRepository.getDistinctCompanies(portfolioId),
+      this.userAssetSellRepository.getDistinctCompanies(portfolioId),
+    ]);
+
+    return [...new Set([...buyCompanies, ...sellCompanies])].sort();
   }
 
   public async getAssetCountByPortfolioId(portfolioId: string): Promise<{ buys: number; sells: number; dividends: number; total: number }> {

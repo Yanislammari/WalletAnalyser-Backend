@@ -51,8 +51,10 @@ class PortfolioController {
 
   public async getBuysByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId: string | string[] = req.params.portfolioId;
-      const response: AssetBuyResponseDto[] = await this.portfolioService.getBuysByPortfolioId(portfolioId as string);
+      const portfolioId = req.params.portfolioId as string;
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+      const response: AssetBuyResponseDto[] = await this.portfolioService.getBuysByPortfolioId(portfolioId, from, to);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -79,8 +81,10 @@ class PortfolioController {
 
   public async getSellsByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId: string | string[] = req.params.portfolioId;
-      const response: AssetSellResponseDto[] = await this.portfolioService.getSellsByPortfolioId(portfolioId as string);
+      const portfolioId = req.params.portfolioId as string;
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+      const response: AssetSellResponseDto[] = await this.portfolioService.getSellsByPortfolioId(portfolioId, from, to);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -107,8 +111,10 @@ class PortfolioController {
 
   public async getDividendsByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId: string | string[] = req.params.portfolioId;
-      const response: AddAssetDividendRequestDto[] = await this.portfolioService.getDividendsByPortfolioId(portfolioId as string);
+      const portfolioId = req.params.portfolioId as string;
+      const from = req.query.from as string | undefined;
+      const to = req.query.to as string | undefined;
+      const response: AssetDividendResponseDto[] = await this.portfolioService.getDividendsByPortfolioId(portfolioId, from, to);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -124,6 +130,20 @@ class PortfolioController {
       const request: AddAssetDividendRequestDto = req.body;
       const response: AssetDividendResponseDto = await this.portfolioService.addAssetDividend(request);
       return res.status(201).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
+        return res.status(404).json({ message: "Portfolio not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getCompaniesByPortfolioId(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId = req.params.portfolioId as string;
+      const response = await this.portfolioService.getCompaniesByPortfolioId(portfolioId);
+      return res.status(200).json(response);
     }
     catch (error) {
       if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
