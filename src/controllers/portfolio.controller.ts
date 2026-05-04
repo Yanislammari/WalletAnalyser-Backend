@@ -31,7 +31,8 @@ class PortfolioController {
       const userId: string = req.params.userId as string;
       const page: number = parseInt(req.query.page as string) || 1;
       const limit: number = parseInt(req.query.limit as string) || 9;
-      const response: PaginatedResponseDto<PortfolioResponseDto> = await this.portfolioService.getPortfoliosByUserId(userId, page, limit);
+      const search: string | undefined = (req.query.search as string) || undefined;
+      const response: PaginatedResponseDto<PortfolioResponseDto> = await this.portfolioService.getPortfoliosByUserId(userId, page, limit, search);
       return res.status(200).json(response);
     }
     catch (error) {

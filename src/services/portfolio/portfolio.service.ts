@@ -35,8 +35,8 @@ export class PortfolioService {
     return this.portfolioMapper.portfolioEntityToDto(portfolio);
   }
 
-  public async getPortfoliosByUserId(userId: string, page: number, limit: number): Promise<PaginatedResponseDto<PortfolioResponseDto>> {
-    const { rows, count } = await this.portfolioRepository.getByUserId(userId, page, limit);
+  public async getPortfoliosByUserId(userId: string, page: number, limit: number, search?: string): Promise<PaginatedResponseDto<PortfolioResponseDto>> {
+    const { rows, count } = await this.portfolioRepository.getByUserId(userId, page, limit, search);
     return { data: rows.map((portfolio) => this.portfolioMapper.portfolioEntityToDto(portfolio)), total: count, page, limit };
   }
 
