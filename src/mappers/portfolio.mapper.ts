@@ -2,14 +2,14 @@ import { Portfolio } from "../db_schema/portfolio/portfolio";
 import { UserAssetBuy } from "../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../db_schema/portfolio/user_asset_dividend";
-import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add_portfolio.request.dto";
-import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add_asset_buy.request.dto";
-import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add_asset_sell.request.dto";
-import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add_asset_dividend.request.dto";
+import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add.portfolio.request.dto";
+import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add.asset.buy.request.dto";
+import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add.asset.sell.request.dto";
+import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add.asset.dividend.request.dto";
 import { PortfolioResponseDto } from "../dtos/portfolio/responses/portfolio.response.dto";
-import { AssetBuyResponseDto } from "../dtos/portfolio/responses/asset_buy.response.dto";
-import { AssetSellResponseDto } from "../dtos/portfolio/responses/asset_sell.response.dto";
-import { AssetDividendResponseDto } from "../dtos/portfolio/responses/asset_dividend.response.dto";
+import { AssetBuyResponseDto } from "../dtos/portfolio/responses/asset.buy.response.dto";
+import { AssetSellResponseDto } from "../dtos/portfolio/responses/asset.sell.response.dto";
+import { AssetDividendResponseDto } from "../dtos/portfolio/responses/asset.dividend.response.dto";
 
 export class PortfolioMapper {
   public addPortfolioDtoToEntity(dto: AddPortfolioRequestDto): Partial<Portfolio> {
@@ -26,8 +26,8 @@ export class PortfolioMapper {
       userId: entity.user_uuid,
       name: entity.name,
       displayCurrencyId: entity.display_currency_uuid,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
+      createdAt: entity.dataValues.created_at,
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 
@@ -55,8 +55,8 @@ export class PortfolioMapper {
       assetBuyAmount: entity.asset_buy_amount,
       assetBuyShare: entity.asset_buy_share,
       assetBuyPricePerShare: entity.asset_buy_price_per_share,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
+      createdAt: entity.dataValues.created_at,
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 
@@ -86,8 +86,8 @@ export class PortfolioMapper {
       assetSellShare: entity.asset_sell_share,
       averageAssetShareBuyPrice: entity.average_asset_share_buy_price,
       assetSellGain: entity.asset_sell_gain,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
+      createdAt: entity.dataValues.created_at,
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 
@@ -107,8 +107,8 @@ export class PortfolioMapper {
       currencyId: entity.currency_uuid,
       cashflowDate: String(entity.cashflow_date).split("T")[0],
       cashflowAmount: entity.cashflow_amount,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
+      createdAt: entity.dataValues.created_at,
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 }

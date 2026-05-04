@@ -7,15 +7,27 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
     super(UserAssetDividend);
   }
 
-  public async getByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<UserAssetDividend[]> {
+  public async getByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string): Promise<{ rows: UserAssetDividend[]; count: number }> {
     const where: Record<string, unknown> = { portfolio_uuid: portfolioId };
+
     if (from || to) {
       const dateRange: Record<symbol, string> = {};
-      if (from) dateRange[Op.gte] = from;
-      if (to) dateRange[Op.lte] = to;
+      if (from) {
+        dateRange[Op.gte] = from;
+      }
+      if (to) {
+        dateRange[Op.lte] = to;
+      }
+
       where.cashflow_date = dateRange;
     }
-    return this.model.findAll({ where });
+    
+    return this.model.findAndCountAll({
+      where,
+      limit,
+      offset: (page - 1) * limit,
+      order: [["cashflow_date", "DESC"]],
+    });
   }
 
   public async countByPortfolioId(portfolioId: string): Promise<number> {

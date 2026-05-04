@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
 import { PortfolioService } from "../services/portfolio/portfolio.service";
-import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add_portfolio.request.dto";
-import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add_asset_buy.request.dto";
-import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add_asset_sell.request.dto";
-import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add_asset_dividend.request.dto";
+import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add.portfolio.request.dto";
+import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add.asset.buy.request.dto";
+import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add.asset.sell.request.dto";
+import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add.asset.dividend.request.dto";
 import { AssetBuyResponseDto, AssetDividendResponseDto, AssetSellResponseDto, PortfolioResponseDto } from "../dtos";
+import { PaginatedResponseDto } from "../dtos/common/paginated.response.dto";
+import AssetCountResponse from "../dtos/portfolio/responses/asset.count.response";
 
 class PortfolioController {
   private readonly portfolioService: PortfolioService;
@@ -26,8 +28,10 @@ class PortfolioController {
 
   public async getPortfoliosByUserId(req: Request, res: Response): Promise<Response> {
     try {
-      const userId: string | string[] = req.params.userId;
-      const response: PortfolioResponseDto[] = await this.portfolioService.getPortfoliosByUserId(userId as string);
+      const userId: string = req.params.userId as string;
+      const page: number = parseInt(req.query.page as string) || 1;
+      const limit: number = parseInt(req.query.limit as string) || 9;
+      const response: PaginatedResponseDto<PortfolioResponseDto> = await this.portfolioService.getPortfoliosByUserId(userId, page, limit);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -51,10 +55,13 @@ class PortfolioController {
 
   public async getBuysByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
-      const from = req.query.from as string | undefined;
-      const to = req.query.to as string | undefined;
-      const response: AssetBuyResponseDto[] = await this.portfolioService.getBuysByPortfolioId(portfolioId, from, to);
+      const portfolioId: string = req.params.portfolioId as string;
+      const page: number = parseInt(req.query.page as string) || 1;
+      const limit: number = parseInt(req.query.limit as string) || 10;
+      const from: string | undefined = req.query.from as string | undefined;
+      const to: string | undefined = req.query.to as string | undefined;
+      const company: string | undefined = req.query.company as string | undefined;
+      const response: PaginatedResponseDto<AssetBuyResponseDto> = await this.portfolioService.getBuysByPortfolioId(portfolioId, page, limit, from, to, company);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -81,10 +88,13 @@ class PortfolioController {
 
   public async getSellsByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
-      const from = req.query.from as string | undefined;
-      const to = req.query.to as string | undefined;
-      const response: AssetSellResponseDto[] = await this.portfolioService.getSellsByPortfolioId(portfolioId, from, to);
+      const portfolioId: string = req.params.portfolioId as string;
+      const page: number = parseInt(req.query.page as string) || 1;
+      const limit: number = parseInt(req.query.limit as string) || 10;
+      const from: string | undefined = req.query.from as string | undefined;
+      const to: string | undefined = req.query.to as string | undefined;
+      const company: string | undefined = req.query.company as string | undefined;
+      const response: PaginatedResponseDto<AssetSellResponseDto> = await this.portfolioService.getSellsByPortfolioId(portfolioId, page, limit, from, to, company);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -111,10 +121,12 @@ class PortfolioController {
 
   public async getDividendsByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
-      const from = req.query.from as string | undefined;
-      const to = req.query.to as string | undefined;
-      const response: AssetDividendResponseDto[] = await this.portfolioService.getDividendsByPortfolioId(portfolioId, from, to);
+      const portfolioId :string = req.params.portfolioId as string;
+      const page: number = parseInt(req.query.page as string) || 1;
+      const limit: number = parseInt(req.query.limit as string) || 10;
+      const from: string | undefined = req.query.from as string | undefined;
+      const to: string | undefined = req.query.to as string | undefined;
+      const response: PaginatedResponseDto<AssetDividendResponseDto> = await this.portfolioService.getDividendsByPortfolioId(portfolioId, page, limit, from, to);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -141,8 +153,8 @@ class PortfolioController {
 
   public async getCompaniesByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
-      const response = await this.portfolioService.getCompaniesByPortfolioId(portfolioId);
+      const portfolioId: string = req.params.portfolioId as string;
+      const response: string[] = await this.portfolioService.getCompaniesByPortfolioId(portfolioId);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -155,8 +167,8 @@ class PortfolioController {
 
   public async getAssetCountByPortfolioId(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
-      const response = await this.portfolioService.getAssetCountByPortfolioId(portfolioId);
+      const portfolioId: string = req.params.portfolioId as string;
+      const response: AssetCountResponse = await this.portfolioService.getAssetCountByPortfolioId(portfolioId);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -169,7 +181,7 @@ class PortfolioController {
 
   public async deletePortfolio(req: Request, res: Response): Promise<Response> {
     try {
-      const portfolioId = req.params.portfolioId as string;
+      const portfolioId: string = req.params.portfolioId as string;
       await this.portfolioService.deletePortfolio(portfolioId);
       return res.status(204).send();
     }
@@ -183,7 +195,7 @@ class PortfolioController {
 
   public async deleteAssetBuy(req: Request, res: Response): Promise<Response> {
     try {
-      const buyId = req.params.buyId as string;
+      const buyId: string = req.params.buyId as string;
       await this.portfolioService.deleteAssetBuy(buyId);
       return res.status(204).send();
     }
@@ -197,7 +209,7 @@ class PortfolioController {
 
   public async deleteAssetSell(req: Request, res: Response): Promise<Response> {
     try {
-      const sellId = req.params.sellId as string;
+      const sellId: string = req.params.sellId as string;
       await this.portfolioService.deleteAssetSell(sellId);
       return res.status(204).send();
     }
@@ -211,7 +223,7 @@ class PortfolioController {
 
   public async deleteAssetDividend(req: Request, res: Response): Promise<Response> {
     try {
-      const dividendId = req.params.dividendId as string;
+      const dividendId: string = req.params.dividendId as string;
       await this.portfolioService.deleteAssetDividend(dividendId);
       return res.status(204).send();
     }

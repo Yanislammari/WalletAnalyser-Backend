@@ -1,21 +1,37 @@
 import { Op } from "sequelize";
-import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
+import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { BaseRepository } from "../base.repository";
 
-export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
+export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
   constructor() {
-    super(UserAssetSell);
+    super(UserAssetBuy);
   }
 
-  public async getByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<UserAssetSell[]> {
+  public async getByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string, company?: string): Promise<{ rows: UserAssetBuy[]; count: number }> {
     const where: Record<string, unknown> = { portfolio_uuid: portfolioId };
+
     if (from || to) {
       const dateRange: Record<symbol, string> = {};
-      if (from) dateRange[Op.gte] = from;
-      if (to) dateRange[Op.lte] = to;
-      where.sell_date = dateRange;
+      if (from) {
+        dateRange[Op.gte] = from;
+      }
+      if (to) {
+        dateRange[Op.lte] = to;
+      }
+
+      where.buy_date = dateRange;
     }
-    return this.model.findAll({ where });
+    
+    if (company) {
+      where.company_name = company;
+    }
+
+    return this.model.findAndCountAll({
+      where,
+      limit,
+      offset: (page - 1) * limit,
+      order: [["buy_date", "DESC"]],
+    });
   }
 
   public async countByPortfolioId(portfolioId: string): Promise<number> {

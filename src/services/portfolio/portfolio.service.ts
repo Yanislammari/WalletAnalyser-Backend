@@ -1,17 +1,19 @@
 import { PortfolioMapper } from "../../mappers/portfolio.mapper";
 import { PortfolioRepository } from "../../repositories/portfolio/portfolio.repository";
-import { UserAssetBuyRepository } from "../../repositories/portfolio/user_asset_buy.repository";
-import { UserAssetSellRepository } from "../../repositories/portfolio/user_asset_sell.repository";
-import { UserAssetDividendRepository } from "../../repositories/portfolio/user_asset_dividend.repository";
-import { AddPortfolioRequestDto } from "../../dtos/portfolio/requests/add_portfolio.request.dto";
-import { AddAssetBuyRequestDto } from "../../dtos/portfolio/requests/add_asset_buy.request.dto";
-import { AddAssetSellRequestDto } from "../../dtos/portfolio/requests/add_asset_sell.request.dto";
-import { AddAssetDividendRequestDto } from "../../dtos/portfolio/requests/add_asset_dividend.request.dto";
+import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
+import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
+import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
+import { AddPortfolioRequestDto } from "../../dtos/portfolio/requests/add.portfolio.request.dto";
+import { AddAssetBuyRequestDto } from "../../dtos/portfolio/requests/add.asset.buy.request.dto";
+import { AddAssetSellRequestDto } from "../../dtos/portfolio/requests/add.asset.sell.request.dto";
+import { AddAssetDividendRequestDto } from "../../dtos/portfolio/requests/add.asset.dividend.request.dto";
 import { PortfolioResponseDto } from "../../dtos/portfolio/responses/portfolio.response.dto";
-import { AssetBuyResponseDto } from "../../dtos/portfolio/responses/asset_buy.response.dto";
-import { AssetSellResponseDto } from "../../dtos/portfolio/responses/asset_sell.response.dto";
-import { AssetDividendResponseDto } from "../../dtos/portfolio/responses/asset_dividend.response.dto";
+import { AssetBuyResponseDto } from "../../dtos/portfolio/responses/asset.buy.response.dto";
+import { AssetSellResponseDto } from "../../dtos/portfolio/responses/asset.sell.response.dto";
+import { AssetDividendResponseDto } from "../../dtos/portfolio/responses/asset.dividend.response.dto";
+import { PaginatedResponseDto } from "../../dtos/common/paginated.response.dto";
 import { Portfolio, UserAssetBuy, UserAssetDividend, UserAssetSell } from "../../db_schema";
+import AssetCountResponse from "../../dtos/portfolio/responses/asset.count.response";
 
 export class PortfolioService {
   private readonly portfolioRepository: PortfolioRepository;
@@ -33,9 +35,9 @@ export class PortfolioService {
     return this.portfolioMapper.portfolioEntityToDto(portfolio);
   }
 
-  public async getPortfoliosByUserId(userId: string): Promise<PortfolioResponseDto[]> {
-    const portfolios: Portfolio[] = await this.portfolioRepository.get({ where: { user_uuid: userId } });
-    return portfolios.map((portfolio) => this.portfolioMapper.portfolioEntityToDto(portfolio));
+  public async getPortfoliosByUserId(userId: string, page: number, limit: number): Promise<PaginatedResponseDto<PortfolioResponseDto>> {
+    const { rows, count } = await this.portfolioRepository.getByUserId(userId, page, limit);
+    return { data: rows.map((portfolio) => this.portfolioMapper.portfolioEntityToDto(portfolio)), total: count, page, limit };
   }
 
   public async getPortfolioById(portfolioId: string): Promise<PortfolioResponseDto> {
@@ -47,34 +49,34 @@ export class PortfolioService {
     return this.portfolioMapper.portfolioEntityToDto(portfolio);
   }
 
-  public async getBuysByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetBuyResponseDto[]> {
+  public async getBuysByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string, company?: string): Promise<PaginatedResponseDto<AssetBuyResponseDto>> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetBuys: UserAssetBuy[] = await this.userAssetBuyRepository.getByPortfolioId(portfolioId, from, to);
-    return assetBuys.map((assetBuy) => this.portfolioMapper.assetBuyEntityToDto(assetBuy));
+    const { rows, count } = await this.userAssetBuyRepository.getByPortfolioId(portfolioId, page, limit, from, to, company);
+    return { data: rows.map((row) => this.portfolioMapper.assetBuyEntityToDto(row)), total: count, page, limit };
   }
 
-  public async getSellsByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetSellResponseDto[]> {
+  public async getSellsByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string, company?: string): Promise<PaginatedResponseDto<AssetSellResponseDto>> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetSells: UserAssetSell[] = await this.userAssetSellRepository.getByPortfolioId(portfolioId, from, to);
-    return assetSells.map((assetSell) => this.portfolioMapper.assetSellEntityToDto(assetSell));
+    const { rows, count } = await this.userAssetSellRepository.getByPortfolioId(portfolioId, page, limit, from, to, company);
+    return { data: rows.map((row) => this.portfolioMapper.assetSellEntityToDto(row)), total: count, page, limit };
   }
 
-  public async getDividendsByPortfolioId(portfolioId: string, from?: string, to?: string): Promise<AssetDividendResponseDto[]> {
+  public async getDividendsByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string): Promise<PaginatedResponseDto<AssetDividendResponseDto>> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetDividends: UserAssetDividend[] = await this.userAssetDividendRepository.getByPortfolioId(portfolioId, from, to);
-    return assetDividends.map((assetDividend) => this.portfolioMapper.assetDividendEntityToDto(assetDividend));
+    const { rows, count } = await this.userAssetDividendRepository.getByPortfolioId(portfolioId, page, limit, from, to);
+    return { data: rows.map((row) => this.portfolioMapper.assetDividendEntityToDto(row)), total: count, page, limit };
   }
 
   public async addAssetBuy(request: AddAssetBuyRequestDto): Promise<AssetBuyResponseDto> {
@@ -121,7 +123,7 @@ export class PortfolioService {
     return [...new Set([...buyCompanies, ...sellCompanies])].sort();
   }
 
-  public async getAssetCountByPortfolioId(portfolioId: string): Promise<{ buys: number; sells: number; dividends: number; total: number }> {
+  public async getAssetCountByPortfolioId(portfolioId: string): Promise<AssetCountResponse> {
     const portfolio: Portfolio | null = await this.portfolioRepository.getById(portfolioId);
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
