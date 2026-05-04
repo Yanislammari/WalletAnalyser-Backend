@@ -14,3 +14,7 @@ export * from "./sector/sector_concentration";
 export * from "./users/users";
 export * from "./users/user_type";
 export * from "./rfr";
+export * from "./portfolio/portfolio";
+export * from "./portfolio/user_asset_buy";
+export * from "./portfolio/user_asset_sell";
+export * from "./portfolio/user_asset_dividend";

@@ -10,6 +10,7 @@ export interface UserResponseDto {
   ban: boolean;
   subscribe : boolean;
   userType: UserType;
+  activated: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

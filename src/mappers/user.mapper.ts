@@ -15,6 +15,7 @@ export class UserMapper {
       ban: entity.ban,
       subscribe : entity.subscribe,
       userType: entity.user_type,
+      activated: entity.activated,
       createdAt: entity.dataValues.created_at,
       updatedAt: entity.dataValues.updated_at,
     };
@@ -28,6 +29,7 @@ export class UserMapper {
       last_name: dto.lastName,
       ban: false,
       user_type: UserType.USER,
+      activated: false,
       subscribe: false,
       created_at: new Date(),
       updated_at: new Date(),
@@ -42,6 +44,7 @@ export class UserMapper {
       last_name: dto.lastName,
       ban: false,
       user_type: UserType.SUPER_USER,
+      activated: true,
       subscribe: false,
       created_at: new Date(),
       updated_at: new Date(),

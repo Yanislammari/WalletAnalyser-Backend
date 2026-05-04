@@ -36,7 +36,7 @@ export class GoogleOAuthService {
         last_name: payload.family_name || "",
         email: payload.email,
         password: null,
-        google_id: payload.sub,
+        google_id: payload.sub || null,
         google_picture_url: payload.picture || null,
         ban: false,
         user_type: UserType.USER,
