@@ -4,3 +4,9 @@ export interface RegisterRequestDto {
   firstName: string;
   lastName: string;
 }
+
+export interface RegisterSuperUserRequestDto {
+  email: string;
+  firstName: string;
+  lastName: string;
+}

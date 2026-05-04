@@ -19,8 +19,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
-
-COPY --from=builder /app/dist/src ./src
+COPY --from=builder /app/src/asset ./dist/src/asset
 
 EXPOSE 8080
 

@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { Country, CountryAllias, attributesCountryAllias } from "../../db_schema";
 
 export class CountryAlliasRepository {
@@ -8,7 +9,9 @@ export class CountryAlliasRepository {
       const existingCountryAllias =
         (await CountryAllias.findOne({
           where: {
-            [attributesCountryAllias.country_allias_name]: countryAlliasName,
+            [attributesCountryAllias.country_allias_name]: {
+              [Op.iLike]: countryAlliasName,
+            },
           },
           include: [
             {
@@ -31,7 +34,6 @@ export class CountryAlliasRepository {
         return existingCountryAllias;
       }
       const newCountryAllias = await CountryAllias.create({
-        // MUST BE THE FRENCH NAME !!!!!!!! the english name etc should be in alliases
         [attributesCountryAllias.country_uuid]: officialCountryUuid,
         [attributesCountryAllias.country_allias_name]: countryAlliasName,
       });

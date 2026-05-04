@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { Sector, SectorAllias, attributesSectorAllias } from "../../db_schema";
 
 export class SectorAlliasRepository {
@@ -8,7 +9,9 @@ export class SectorAlliasRepository {
       const existingSectorAllias =
         (await SectorAllias.findOne({
           where: {
-            [attributesSectorAllias.sector_allias_name]: sectorAlliasName,
+            [attributesSectorAllias.sector_allias_name]: {
+              [Op.iLike]: sectorAlliasName,
+            },
           },
           include: [
             {
@@ -31,7 +34,6 @@ export class SectorAlliasRepository {
         return existingSectorAllias;
       }
       const newAlliasSector = await SectorAllias.create({
-        // MUST BE THE FRENCH NAME !!!!!!!! the english name etc should be in alliases
         [attributesSectorAllias.sector_uuid]: officialSectorUuid,
         [attributesSectorAllias.sector_allias_name]: sectorAlliasName,
       });

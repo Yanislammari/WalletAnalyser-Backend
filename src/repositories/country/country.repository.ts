@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { attributesCountry, attributesCountryAllias, Country, CountryAllias } from "../../db_schema";
 
 export class CountryRepository {
@@ -7,14 +8,18 @@ export class CountryRepository {
     try {
       const country = await Country.findOne({
         where: {
-          [attributesCountry.country_name]: countryName,
+          [attributesCountry.country_name]: {
+            [Op.iLike]: countryName, // PostgreSQL case-insensitive LIKE
+          },
         },
       });
 
       if (country) return country;
       const alias = await CountryAllias.findOne({
         where: {
-          [attributesCountryAllias.country_allias_name]: countryName,
+          [attributesCountryAllias.country_allias_name]: {
+            [Op.iLike]: countryName,
+          },
         },
         include: [
           {
@@ -31,6 +36,16 @@ export class CountryRepository {
     }
   }
 
+  async getAllCountries(): Promise<Country[]> {
+    try {
+      const countries = await Country.findAll();
+      return countries;
+    } catch (error) {
+      console.error(`Error fetching all countries`, error);
+      return [];
+    }
+  }
+
   async addCountryToDatabase(country: string): Promise<Country> {
     try {
       const existingCountry = await this.getCountryByName(country);
@@ -38,7 +53,6 @@ export class CountryRepository {
         return existingCountry;
       }
       const newCountry = await Country.create({
-        // MUST BE THE FRENCH NAME !!!!!!!! the english name etc should be in alliases
         [attributesCountry.country_name]: country,
       });
       return newCountry;

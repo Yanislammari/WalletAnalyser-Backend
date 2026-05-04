@@ -1,6 +1,6 @@
-import { DataTypes, Model } from 'sequelize';
-import { sequelize } from '../../config';
-import UserType from './user_type';
+import { DataTypes, Model } from "sequelize";
+import { sequelize } from "../../config";
+import UserType from "./user_type";
 
 export const attributesUser = {
   id: "id",
@@ -15,7 +15,7 @@ export const attributesUser = {
   subscribe: "subscribe",
   activated: "activated",
   createdAt: "created_at",
-  updatedAt: "updated_at"
+  updatedAt: "updated_at",
 };
 
 export class User extends Model {
@@ -30,8 +30,8 @@ export class User extends Model {
   public user_type!: UserType;
   public subscribe!: boolean;
   public activated!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  public readonly created_at!: Date;
+  public readonly updated_at!: Date;
 }
 
 User.init(
@@ -39,52 +39,52 @@ User.init(
     id: {
       type: DataTypes.UUID,
       primaryKey: true,
-      defaultValue: DataTypes.UUIDV4
+      defaultValue: DataTypes.UUIDV4,
     },
     email: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: {
         name: "unique_email_constraint",
-        msg: "Email already exists in the database"
+        msg: "Email already exists in the database",
       },
       validate: {
-        isEmail: true
-      }
+        isEmail: true,
+      },
     },
     password: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
     google_id: {
       type: DataTypes.STRING,
       allowNull: true,
       unique: {
         name: "unique_google_id_constraint",
-        msg: "Google account already linked"
-      }
+        msg: "Google account already linked",
+      },
     },
     google_picture_url: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
     first_name: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     last_name: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     ban: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
     },
     user_type: {
       type: DataTypes.ENUM(...Object.values(UserType)),
       allowNull: false,
-      defaultValue: UserType.USER
+      defaultValue: UserType.USER,
     },
     subscribe: {
       type: DataTypes.BOOLEAN,

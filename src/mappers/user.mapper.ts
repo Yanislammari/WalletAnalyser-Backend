@@ -1,4 +1,4 @@
-import { RegisterRequestDto } from "../dtos/auth/requests/register.request.dto";
+import { RegisterRequestDto, RegisterSuperUserRequestDto } from "../dtos/auth/requests/register.request.dto";
 import { UserResponseDto } from "../dtos/user/responses/user.response.dto";
 import { User } from "../db_schema";
 import UserType from "../db_schema/users/user_type";
@@ -13,10 +13,11 @@ export class UserMapper {
       googleId: entity.dataValues.google_id,
       googlePictureUrl: entity.dataValues.google_picture_url,
       ban: entity.ban,
+      subscribe : entity.subscribe,
       userType: entity.user_type,
       activated: entity.activated,
       createdAt: entity.dataValues.created_at,
-      updatedAt: entity.dataValues.updated_at
+      updatedAt: entity.dataValues.updated_at,
     };
   }
 
@@ -28,10 +29,25 @@ export class UserMapper {
       last_name: dto.lastName,
       ban: false,
       user_type: UserType.USER,
-      subscribe: false,
       activated: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      subscribe: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+  }
+
+  public registerRequestSuperUserDtoToUserEntity(dto: RegisterSuperUserRequestDto, password : string): Partial<User> {
+    return {
+      email: dto.email,
+      password: password,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
+      ban: false,
+      user_type: UserType.SUPER_USER,
+      activated: true,
+      subscribe: false,
+      created_at: new Date(),
+      updated_at: new Date(),
     };
   }
 }
