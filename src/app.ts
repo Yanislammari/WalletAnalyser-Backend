@@ -1,3 +1,4 @@
+import { AzureAppInsightsService } from "./services/azure.app.insights.service";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -6,6 +7,8 @@ import { ExcelService } from "./services/excel.service";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
+
+AzureAppInsightsService.init();
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || '[]') as string[];
