@@ -12,8 +12,11 @@ import { AssetBuyResponseDto } from "../../dtos/portfolio/responses/asset.buy.re
 import { AssetSellResponseDto } from "../../dtos/portfolio/responses/asset.sell.response.dto";
 import { AssetDividendResponseDto } from "../../dtos/portfolio/responses/asset.dividend.response.dto";
 import { PaginatedResponseDto } from "../../dtos/common/paginated.response.dto";
-import { Portfolio, UserAssetBuy, UserAssetDividend, UserAssetSell } from "../../db_schema";
 import AssetCountResponse from "../../dtos/portfolio/responses/asset.count.response";
+import { Portfolio } from "../../db_schema/portfolio/portfolio";
+import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
+import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
+import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
 
 export class PortfolioService {
   private readonly portfolioRepository: PortfolioRepository;

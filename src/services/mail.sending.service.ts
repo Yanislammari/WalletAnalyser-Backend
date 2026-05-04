@@ -55,7 +55,10 @@ class MailSendingService {
       .replace(/\${activationLink}/g, activationLink)
       .replace(/\${frontendUrl}/g, FRONTEND_URL_PROD)
       .replace(/\${year}/g, new Date().getFullYear().toString());
-  
+
+    await this.mailjetService.sendEmail(user.email, subject, htmlBody);
+  }
+
   public async send2FAPassword(user: User,code : string): Promise<void> {
     if (!user) {
       throw new Error("EMAIL_NOT_FOUND");
