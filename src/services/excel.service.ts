@@ -56,7 +56,7 @@ export class ExcelService {
 
   async addDataFromAdmin() {
     await this.addCountryToDatabaseFromCSV();
-    //await this.addCurrenciesToDatabase();
+    await this.addCurrenciesToDatabase();
     //await this.addRiskFreeRateToDatabase();
     //await this.addAdminStocksToDatabase();
     //await this.addPricesForAdminAsset();

@@ -14,13 +14,6 @@ const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as str
 
 const app = express();
 
-export const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-  },
-});
-
 async function setUpApi() {
   const authService = new AuthService();
   await startOfDatabase();
@@ -46,6 +39,13 @@ app.use(
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
 app.get("/", (_, res) => {
   res.send("PA : WalletAnalyser Backend");

@@ -7,6 +7,9 @@ import SectorAlliasAdminRoutes from "./sector/sector_allias.route";
 import CountryAlliasAdminRoutes from "./countries/country_allias.route";
 import RfrCountryAdminRoutes from "./rfr/rfr_country.routes";
 import RfrRatesAdminRoutes from "./rfr/rfr_rates.routes";
+import ForexAdminRoutes from "./currencies/forex.routes";
+import ForexRatesAdminRoutes from "./currencies/forex_rates.routes";
+import CurrenciesAdminRoutes from "./currencies/currencies_admin.route";
 
 const AdminRoutes = (): Router => {
   const router: Router = Router();
@@ -18,6 +21,9 @@ const AdminRoutes = (): Router => {
   router.use("/country-allias",createVerifyTokenAdminMiddleware(),CountryAlliasAdminRoutes())
   router.use("/rfr-country",createVerifyTokenAdminMiddleware(),RfrCountryAdminRoutes())
   router.use("/rfr-rates",createVerifyTokenAdminMiddleware(),RfrRatesAdminRoutes())
+  router.use("/forex",createVerifyTokenAdminMiddleware(), ForexAdminRoutes())
+  router.use("/forex-rates",createVerifyTokenAdminMiddleware(), ForexRatesAdminRoutes())
+  router.use("/currencies",createVerifyTokenAdminMiddleware(), CurrenciesAdminRoutes())
   return router;
 };
 

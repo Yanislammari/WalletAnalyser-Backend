@@ -49,4 +49,4 @@ ForexRate.init(
   }
 );
 
-ForexRate.belongsTo(Forex, { as: "forex", foreignKey: attributesForexRate.forex_uuid });
+ForexRate.belongsTo(Forex, { as: "forex", foreignKey: attributesForexRate.forex_uuid , onDelete: "CASCADE"});

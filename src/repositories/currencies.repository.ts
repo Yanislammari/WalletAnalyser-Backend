@@ -1,8 +1,11 @@
 import { attributesCurrency, attributesForexRate, Currency, ForexRate } from "../db_schema";
 import { attributesForex, Forex } from "../db_schema";
+import { BaseRepository } from "./base.repository";
 
-export class CurrenciesRepository {
-  constructor() {}
+export class CurrenciesRepository extends BaseRepository<Currency>{
+  constructor() {
+    super(Currency)
+  }
 
   async getForexFromDb(baseCurrency: string, quoteCurrency: string): Promise<Forex | null> {
     try {

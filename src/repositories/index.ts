@@ -9,5 +9,6 @@ export * from "./sector/sector_concentration.repository";
 export * from "./sector/sector_allias.repository";
 export * from "./sector/sector.repository";
 export * from "./currencies.repository";
+export * from "./currencies/forex.repository";
 export * from "./user.repository";
 export * from "./rfr/rfr_country.repository";
