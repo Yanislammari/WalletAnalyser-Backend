@@ -43,5 +43,5 @@ RiskFreeRateCountry.init(
   }
 );
 
-RiskFreeRateCountry.belongsTo(Country, { as: "country_rfr", foreignKey: attributesRfrCountry.country_uuid, onDelete: "SET NULL" });
+RiskFreeRateCountry.belongsTo(Country, { as: "country_rfr", foreignKey: attributesRfrCountry.country_uuid, onDelete: "CASCADE" });
 Country.hasMany(RiskFreeRateCountry, { as: "country_rfr", foreignKey: attributesRfrCountry.country_uuid });

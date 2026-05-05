@@ -1,19 +1,15 @@
 import { RfrCountryRepository } from "../../repositories/rfr/rfr_country.repository";
 import { attributesRfrCountry, RiskFreeRateCountry } from "../../db_schema";
-import { CountryRepository, RfrRepository } from "../../repositories";
+import { RfrRepository } from "../../repositories";
 import { RfrCountryMetaData, RfrCountryPost } from "../../dtos/rfr/rfr_country";
-import XLSX from "xlsx"
-import { ExcelService } from "../excel.service";
 
 export class RfrCountryService {
   private readonly rfrCountryRepository: RfrCountryRepository;
   private readonly rfrRepository : RfrRepository
-  private readonly countryRepository : CountryRepository
 
   constructor() {
     this.rfrCountryRepository = new RfrCountryRepository();
     this.rfrRepository = new RfrRepository();
-    this.countryRepository = new CountryRepository();
   }
 
   public async getAllRfrCountries(): Promise<RfrCountryMetaData[]> {

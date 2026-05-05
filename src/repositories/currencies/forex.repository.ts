@@ -1,9 +1,47 @@
 import { attributesCurrency, attributesForex, attributesForexRate, Currency, Forex, ForexRate } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
+import { CurrenciesRepository } from "./currencies.repository";
+
+interface DateAndLenght {
+  latestDate : Date
+  numberOfEntry : number 
+}
 
 export class ForexRepository extends BaseRepository<Forex> {
+  private readonly currenciesRepository: CurrenciesRepository;
+  private majorCurrencies: string[] = ["USD"]; //,"EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
+
   constructor() {
     super(Forex);
+    this.currenciesRepository = new CurrenciesRepository();
+  }
+
+  async addForexRatesFromExcel(dates: Date[], forexRates: string[], forex: Forex, quoteCurrencyName: string) : Promise<DateAndLenght> { // est un service mais c'est plus pratique de le mettre là pour éviter des import circulaires
+    const latestForexRateUpdate = await this.currenciesRepository.getLatestForexRateFromDb(forex.uuid);
+    let latestDate = new Date(0);
+    let numberOfEntry = 0;
+    if (latestForexRateUpdate) {
+      latestDate = latestForexRateUpdate.forex_rate_date;
+    }
+    let messageDate = latestDate
+    const isMajor = this.majorCurrencies.includes(quoteCurrencyName);
+    for (let j = 1; j < forexRates.length; j++) {
+      if (isNaN(dates[j].getTime())) continue;
+      if (dates[j] <= latestDate) {
+        //console.log("Stop running at index", j , "for currency", quoteCurrencyName, "date ", dates[j], " latest ", latestDate );
+        break;
+      }
+      const dayOfWeek = dates[j].getDay();
+      if (!isMajor && dayOfWeek != 5) continue; // for non major currency, we only add the price of friday
+      const forexRate = parseFloat(forexRates[j] as string);
+      if (isNaN(forexRate)) {
+        continue;
+      }
+      messageDate = dates[j]
+      numberOfEntry++;
+      await this.currenciesRepository.addForexRateToDb(forex, dates[j], forexRate);
+    }
+    return {latestDate : messageDate, numberOfEntry}
   }
 
   async getAllForexUuid(): Promise<Forex[]> {

@@ -1,12 +1,32 @@
 import { Request, Response } from "express";
 import { ForexService } from "../../services/currencies/forex.service";
 import { ForexListMetaData } from "../../dtos/currencies/forex";
+import path from "path";
+import fs from "fs"
+
+import { DateService, ExcelService } from "../../services";
 
 class ForexController {
   private readonly forexService: ForexService;
 
   constructor() {
     this.forexService = new ForexService();
+  }
+
+  public async getExcelTemplate(req: Request, res: Response): Promise<void | Response> {
+    try {
+      const filePath = path.join(
+        process.cwd(),
+        "src/asset/excel/forex.xlsx"
+      );
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({message: "File not found"});
+      }
+      res.download(filePath, "forex_template.xlsx");
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 
   public async getAllForex(req: Request, res: Response): Promise<Response> {
@@ -22,19 +42,21 @@ class ForexController {
 
   public async createForex(req: Request, res: Response): Promise<Response> {
     try {
-      const { base_currency, quote_currency } = req.body;
+      const { base_currency_uuid } = req.body;
       const file = req.file;
 
-      if (!base_currency || !quote_currency || !file) {
+      if (!base_currency_uuid || !file) {
         return res.status(400).json({ message: "base_currency, quote_currency and file are required" });
       }
 
-      const forex = await this.forexService.createForex(file, base_currency, quote_currency);
+      const forex = await this.forexService.createForex(file, base_currency_uuid);
       return res.status(201).json(forex);
     } catch (error) {
-      console.log(error);
       if (error instanceof Error && error.message.includes("duplicate")) {
         return res.status(500).json({ message: "Cette valeur existe déjà" });
+      }
+      if (error instanceof Error && error.message == "WRONG_FORMAT") {
+        return res.status(500).json({ message: "Are you sure it is a xlsx formatting ?" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }

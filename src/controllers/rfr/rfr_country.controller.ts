@@ -3,7 +3,7 @@ import { RfrCountryService } from "../../services/rfr/rfr_country.service";
 import { RfrCountriesMetaData } from "../../dtos/rfr/rfr_country";
 import path from "path";
 import fs from "fs";
-import XLSX from "xlsx"
+import * as XLSX from "xlsx";
 import { DateService, ExcelService } from "../../services";
 
 class RfrCountryController {

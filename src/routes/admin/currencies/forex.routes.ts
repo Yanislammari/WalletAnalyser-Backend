@@ -7,6 +7,7 @@ const ForexAdminRoutes = (): Router => {
   const router: Router = Router();
   const forexController = new ForexController();
 
+  router.get("/excel-template",( req, res ) =>forexController.getExcelTemplate(req,res))
   router.get("/", (req, res ) => forexController.getAllForex(req , res));
   router.post("/", upload.single("file"), (req, res ) =>  forexController.createForex(req, res));
   router.patch("/:uuid", (req, res ) => forexController.updateForex(req, res));

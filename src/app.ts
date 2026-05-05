@@ -17,7 +17,6 @@ const app = express();
 async function setUpApi() {
   const authService = new AuthService();
   await startOfDatabase();
-
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
   authService.registerAdmin({

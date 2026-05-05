@@ -2,10 +2,10 @@ import * as XLSX from "xlsx";
 import path from "path";
 import countries from "world-countries";
 import fs from "fs";
-import { Asset, Forex } from "../db_schema";
+import { Asset } from "../db_schema";
 import { MarketstackController } from "../controllers";
 import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
-import { DateService } from ".";
+import { DateService, ForexService } from ".";
 import {
   AssetRepository,
   AssetPriceRepository,
@@ -15,6 +15,7 @@ import {
   SectorRepository,
   CurrenciesRepository,
   EtfHoldingsRepository,
+  ForexRepository,
 } from "../repositories";
 import { AssetType } from "../dtos";
 import { ETFHolding } from "../dtos/asset/etf_concentration";
@@ -22,14 +23,13 @@ import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LA
 import { RfrCountryService } from "./rfr/rfr_country.service";
 
 export class ExcelService {
-  private constantPath: string = "../asset/excel/";
-  private jsonConstantPath: string = "../asset/json/";
+  private readonly constantPath: string = "../asset/excel/";
+  private readonly jsonConstantPath: string = "../asset/json/";
 
   private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
-  private defaultETFTicker: string[] = []//"IVV", "QQQM"]; //,"IEUR","IEMG"]
+  private defaultETFTicker: string[] = []//["IVV", "QQQM","IEUR","IEMG"]
 
-  private currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
-  private majorCurrencies: string[] = ["USD"]; //,"EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD"];
+  private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
 
   private risksFreeRateFolderPath: string = path.join(__dirname, this.constantPath, "rfr");
   private stocksPath: string[] = [path.join(__dirname, this.constantPath, "official_stocks_api.xlsx")];
@@ -50,6 +50,7 @@ export class ExcelService {
   private countryRepository: CountryRepository = new CountryRepository();
   private countryAlliasRepository: CountryAlliasRepository = new CountryAlliasRepository();
   private rfrCountryService : RfrCountryService = new RfrCountryService();
+  private forexRepository : ForexRepository = new ForexRepository();
   private etfHoldingsRepository: EtfHoldingsRepository = new EtfHoldingsRepository();
 
   constructor() {}
@@ -149,34 +150,12 @@ export class ExcelService {
           const quoteCurrency = await this.currenciesRepository.addCurrencyToDb(forexRates[0] as string);
           if (euroBaseCurrency && quoteCurrency) {
             const forex = await this.currenciesRepository.addForexToDb(euroBaseCurrency.uuid, quoteCurrency.uuid);
-            this.addPriceCurrenciesFromExcel(dates, forexRates, forex, forexRates[0] as string);
+            this.forexRepository.addForexRatesFromExcel(dates, forexRates, forex, forexRates[0] as string);
           }
         }
       }
     } catch (error) {
       console.error("Error adding currencies to the database:", error);
-    }
-  }
-
-  async addPriceCurrenciesFromExcel(dates: Date[], forexRates: string[], forex: Forex, quoteCurrencyName: string) {
-    const latestForexRateUpdate = await this.currenciesRepository.getLatestForexRateFromDb(forex.uuid);
-    let latestDate = new Date(0);
-    if (latestForexRateUpdate) {
-      latestDate = latestForexRateUpdate.forex_rate_date;
-    }
-    const isMajor = this.majorCurrencies.includes(quoteCurrencyName);
-    for (let j = 1; j < forexRates.length; j++) {
-      if (dates[j] <= latestDate) {
-        //console.log("Stop running at index", j , "for currency", quoteCurrencyName);
-        break;
-      }
-      const dayOfWeek = dates[j].getDay();
-      if (!isMajor && dayOfWeek != 5) continue; // for non major currency, we only add the price of friday
-      const forexRate = parseFloat(forexRates[j] as string);
-      if (isNaN(forexRate)) {
-        continue;
-      }
-      await this.currenciesRepository.addForexRateToDb(forex, dates[j], forexRate);
     }
   }
 

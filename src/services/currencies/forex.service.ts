@@ -1,9 +1,9 @@
 import { ForexRepository } from "../../repositories/currencies/forex.repository";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
-import { ForexMetaData, ForexPost } from "../../dtos/currencies/forex";
-import XLSX from "xlsx";
+import { CurrenciesRepository } from "../../repositories/currencies/currencies.repository";
+import { ForexListMessage, ForexMetaData } from "../../dtos/currencies/forex";
+import * as XLSX from "xlsx";
 import { ExcelService, DateService } from "../index";
-import { attributesForex } from "../../db_schema";
+import { attributesForex, Forex } from "../../db_schema";
 
 export class ForexService {
   private readonly forexRepository: ForexRepository;
@@ -29,51 +29,42 @@ export class ForexService {
     return enriched;
   }
 
-  public async createForex(file: Express.Multer.File, baseCurrencyName: string, quoteCurrencyName: string): Promise<ForexPost> {
-    // Ensure currencies exist
-    const baseCurrency = await this.currenciesRepository.addCurrencyToDb(baseCurrencyName);
-    const quoteCurrency = await this.currenciesRepository.addCurrencyToDb(quoteCurrencyName);
+  public async createForex(file: Express.Multer.File, baseCurrencyUuid: string): Promise<ForexListMessage> {
+    const baseCurrency = await this.currenciesRepository.getById(baseCurrencyUuid);
 
-    const forex = await this.forexRepository.addForexToDb(baseCurrency.uuid, quoteCurrency.uuid);
-
-    const workbook = XLSX.read(file.buffer, { type: "buffer" });
+    const workbook = XLSX.read(file?.buffer, {
+      type: "buffer",
+    });
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     const range = this.excelService.getExcelSize(worksheet);
     const dates = this.excelService.readExcelColumn(worksheet, 0, range).map(date => this.dateService.transformExcelDateToDbDate(date));
-    const rates = this.excelService.readExcelColumn(worksheet, 1, range);
 
-    const seenDates = new Set();
-    const latestRate = await this.forexRepository.getLatestForexRate(forex.uuid);
-    let latestDate = new Date(0);
-    if (latestRate) {
-      latestDate = latestRate.forex_rate_date;
-      seenDates.add(latestDate.toISOString().split('T')[0]);
-    }
-
-    let addToDb = 0;
-    let latestInsertedDate: Date | null = null;
-
-    for (let i = dates.length - 1; i >= 0; i--) {
-      if (dates[i] <= latestDate) {
-        break;
-      }
-      const parsedRate = parseFloat(rates[i]);
-      const d = new Date(dates[i]);
-      if (Number.isNaN(parsedRate)) continue;
-      if (isNaN(d.getTime())) continue;
-
-      const dateKey = d.toISOString().split('T')[0];
-      if (!seenDates.has(dateKey)) {
-        seenDates.add(dateKey);
-        if (!latestInsertedDate) {
-          latestInsertedDate = d;
+    let messages = ""
+    const metaData : ForexMetaData[] = []
+    /**if(range.e.c == 0){
+      throw Error("WRONG_FORMAT")
+    }**/
+    for (let i = 1; i <= range.e.c; i++) {
+      const forexRates = this.excelService.readExcelColumn(worksheet, i, range);
+      const quoteCurrency = await this.currenciesRepository.addCurrencyToDb(forexRates[0] as string);
+      if (baseCurrency && quoteCurrency) {
+        const exist = await this.forexRepository.get({where : { [attributesForex.base_currency] : baseCurrency.uuid, [attributesForex.quote_currency] : quoteCurrency.uuid }})
+        const forex = await this.currenciesRepository.addForexToDb(baseCurrency.uuid, quoteCurrency.uuid);
+        const forexComplete = await this.forexRepository.getForexById(forex.uuid)
+        if(!forexComplete){
+          throw Error("NO_FOREX")
         }
-        addToDb++;
-        await this.forexRepository.addForexRateToDb(forex.uuid, d, parsedRate);
+        const dateAndNumberOfEntry = await this.forexRepository.addForexRatesFromExcel(dates, forexRates, forex, forexRates[0] as string);
+        metaData.push({forex : forexComplete , last_update : dateAndNumberOfEntry.latestDate})
+        if(exist){
+          messages += `Forex ${baseCurrency.currency_name}/${quoteCurrency.currency_name} modified, adding ${dateAndNumberOfEntry.numberOfEntry}\n`
+        } else {
+          messages += `New forex ${baseCurrency.currency_name}/${quoteCurrency.currency_name} modified, adding ${dateAndNumberOfEntry.numberOfEntry}\n`
+        }
       }
     }
 
-    return { forex: forex, last_update: latestInsertedDate, length: addToDb };
+    return {forex_list : metaData, message : messages};
   }
 
   public async updateForex(uuid: string, newBaseCurrencyId: string, newQuoteCurrencyId: string) : Promise<ForexMetaData | null> {

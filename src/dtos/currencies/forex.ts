@@ -9,8 +9,7 @@ export interface ForexListMetaData {
   forex_list: ForexMetaData[];
 }
 
-export interface ForexPost {
-  forex: Forex;
-  last_update: Date | null;
-  length: number;
+export interface ForexListMessage {
+  forex_list: ForexMetaData[];
+  message : string
 }
