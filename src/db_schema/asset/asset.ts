@@ -3,6 +3,13 @@ import { sequelize } from "../../config";
 import { Currency } from "../currencies/currency";
 import { Sector } from "../sector/sector";
 import { Country } from "../country/country";
+import { AssetType } from "../../dtos";
+
+export enum UserType {
+  USER = "USER",
+  ADMIN = "ADMIN",
+  SUPER_USER = "SUPER_USER"
+}
 
 export const attributesAsset = {
   uuid: "uuid",
@@ -19,7 +26,7 @@ export const attributesAsset = {
 export class Asset extends Model {
   public uuid!: string;
   public base_currency_uuid!: string;
-  public asset_type!: string;
+  public asset_type!: AssetType;
   public ticker_name!: string;
   public official_name!: string;
   public sector_uuid!: string;

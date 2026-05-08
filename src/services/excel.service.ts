@@ -5,7 +5,7 @@ import fs from "fs";
 import { Asset } from "../db_schema";
 import { MarketstackController } from "../controllers";
 import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
-import { DateService, ForexService } from ".";
+import { DateService } from ".";
 import {
   AssetRepository,
   AssetPriceRepository,
@@ -21,12 +21,13 @@ import { AssetType } from "../dtos";
 import { ETFHolding } from "../dtos/asset/etf_concentration";
 import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LAST_POINT, TICKER_DELETE_POINT, TICKER_REPLACE_MULTIPLE_SPACES } from "../constants/regex";
 import { RfrCountryService } from "./rfr/rfr_country.service";
+import { AssetPriceService } from "./asset_price.service";
 
 export class ExcelService {
   private readonly constantPath: string = "../asset/excel/";
   private readonly jsonConstantPath: string = "../asset/json/";
 
-  private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
+  private defaultAssetTicker: string[] = ["MSFT"]// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
   private defaultETFTicker: string[] = []//["IVV", "QQQM","IEUR","IEMG"]
 
   private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
@@ -44,7 +45,7 @@ export class ExcelService {
   private marketstackController: MarketstackController = new MarketstackController();
   private assetRepository: AssetRepository = new AssetRepository();
   private dateService: DateService = new DateService();
-  private assetPriceRepository: AssetPriceRepository = new AssetPriceRepository();
+  private assetPriceService: AssetPriceService = new AssetPriceService();
   private sectorRepository: SectorRepository = new SectorRepository();
   private sectorAlliasRepository: SectorAlliasRepository = new SectorAlliasRepository();
   private countryRepository: CountryRepository = new CountryRepository();
@@ -59,8 +60,8 @@ export class ExcelService {
     await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
     //await this.addRiskFreeRateToDatabase();
-    //await this.addAdminStocksToDatabase();
-    //await this.addPricesForAdminAsset();
+    await this.addAdminStocksToDatabase();
+    await this.addPricesForAdminAsset();
     //await this.addConcentrationForAdminEtf();
   }
 
@@ -181,30 +182,11 @@ export class ExcelService {
     }
   }
 
-  async isAssetPriceUpToDate(ticker: string): Promise<boolean> {
-    try {
-      const asset = await this.assetRepository.getAssetFromTicker(ticker);
-      if (asset) {
-        const assetLatestPriceData = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
-        let latestDate = new Date(0);
-        if (assetLatestPriceData) {
-          latestDate = assetLatestPriceData.asset_price_date;
-        }
-        // Our current date must substract one to it
-        return this.dateService.isLatestPriceMoreRecentThanToday(this.dateService.getDateAtUtc0(), latestDate); // if false we refetch
-      }
-      return false;
-    } catch (error) {
-      console.error(`Error while checking stock ${ticker}`, error);
-      throw error;
-    }
-  }
-
   async addPricesForAdminAsset() {
     const allAssets = this.defaultAssetTicker.concat(this.defaultETFTicker);
     for (const ticker of allAssets) {
       try {
-        const isTickerUpToDate = await this.isAssetPriceUpToDate(ticker);
+        const isTickerUpToDate = await this.dateService.isAssetPriceUpToDate(ticker);
         if (isTickerUpToDate) {
           continue;
         }
@@ -238,20 +220,7 @@ export class ExcelService {
           await this.assetRepository.patchCurrencyUUIDAsset(asset.uuid, currency?.uuid ?? null);
         }
 
-        const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
-        let latestDate = new Date(0);
-        if (latestPrice) {
-          latestDate = latestPrice.asset_price_date;
-        }
-        let i = 0;
-        while (i < assetPrice.length && assetPrice[i].date > latestDate) {
-          if (isNaN(assetPrice[i].adj_close) || assetPrice[i].adj_close == 0) {
-            i++;
-            continue;
-          }
-          await this.assetPriceRepository.addAssetPrice(asset.uuid, assetPrice[i].date, assetPrice[i].adj_close);
-          i++;
-        }
+        this.assetPriceService.addPricesToDatabase(assetPrice, asset.uuid)
       } catch (error) {
         console.error(`Error while adding price for stock ${ticker}`, error);
       }

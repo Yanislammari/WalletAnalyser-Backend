@@ -10,6 +10,8 @@ import RfrRatesAdminRoutes from "./rfr/rfr_rates.routes";
 import ForexAdminRoutes from "./currencies/forex.routes";
 import ForexRatesAdminRoutes from "./currencies/forex_rates.routes";
 import CurrenciesAdminRoutes from "./currencies/currencies_admin.route";
+import AssetAdminRoutes from "./assets.routes";
+import AssetPriceAdminRoutes from "./assetPrice.routes";
 
 const AdminRoutes = (): Router => {
   const router: Router = Router();
@@ -24,6 +26,8 @@ const AdminRoutes = (): Router => {
   router.use("/forex",createVerifyTokenAdminMiddleware(), ForexAdminRoutes())
   router.use("/forex-rates",createVerifyTokenAdminMiddleware(), ForexRatesAdminRoutes())
   router.use("/currencies",createVerifyTokenAdminMiddleware(), CurrenciesAdminRoutes())
+  router.use("/assets",createVerifyTokenAdminMiddleware(), AssetAdminRoutes())
+  router.use("/asset-prices",createVerifyTokenAdminMiddleware(), AssetPriceAdminRoutes())
   return router;
 };
 
