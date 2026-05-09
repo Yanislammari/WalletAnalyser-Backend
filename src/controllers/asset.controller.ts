@@ -30,7 +30,7 @@ class AssetController {
       const asset = new AssetDatabaseModel(
         req.body.official_name ?? null,
         req.body.ticker_name ?? null,
-        AssetType.STOCKS,
+        req.body.type,
         req.body.sector_uuid ?? null,
         req.body.country_uuid ?? null,
         req.body.base_currency_uuid ?? null
@@ -39,6 +39,9 @@ class AssetController {
       const createdAsset = await this.assetService.createAsset(asset);
       return res.status(201).json(createdAsset);
     } catch (error) {
+      if( error instanceof Error && error.message == "ALREADY_EXIST") {
+        return res.status(500).json({ message: "This already exist in asset or etf" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -49,7 +52,7 @@ class AssetController {
       const asset = new AssetDatabaseModel(
         req.body.official_name ?? null,
         req.body.ticker_name ?? null,
-        req.body.type ?? AssetType.STOCKS,
+        req.body.type,
         req.body.sector_uuid ?? null,
         req.body.country_uuid ?? null,
         req.body.base_currency_uuid ?? null
@@ -61,6 +64,9 @@ class AssetController {
       }
       return res.status(200).json(updatedAsset);
     } catch (error) {
+      if( error instanceof Error && error.message == "ALREADY_EXIST") {
+        return res.status(500).json({ message: "This already exist in asset or etf" });
+      }
       return res.status(500).json({ message: "Internal server error" });
     }
   }

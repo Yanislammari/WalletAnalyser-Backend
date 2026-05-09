@@ -19,7 +19,6 @@ export class MarketstackController {
       }
       return await response.json();
     } catch (error) {
-      console.error(`Error fetching data from Marketstack API:`, error);
       throw error;
     }
   }

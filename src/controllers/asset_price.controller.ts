@@ -49,7 +49,6 @@ class AssetPriceController {
       const response = await this.assetPriceService.getAllAssetPrices(asset_uuid, offset, size, from, to);
       return res.status(200).json({response, message : `We added ${numberOfAdd} prices to the stocks`});
     } catch (error) {
-      console.error(error);
       if(error instanceof Error && error.message == "UNFOUND_TICKER") {
         return res.status(404).json({message : "The ticker does not exist"})
       }

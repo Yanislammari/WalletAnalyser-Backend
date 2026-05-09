@@ -27,7 +27,7 @@ export class ExcelService {
   private readonly constantPath: string = "../asset/excel/";
   private readonly jsonConstantPath: string = "../asset/json/";
 
-  private defaultAssetTicker: string[] = ["MSFT"]// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
+  private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
   private defaultETFTicker: string[] = []//["IVV", "QQQM","IEUR","IEMG"]
 
   private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];

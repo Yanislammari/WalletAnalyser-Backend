@@ -17,11 +17,16 @@ export class AssetService {
   }
 
   public async getAssets(type?: string, offset = 0, limit = 100, search?: string): Promise<MetaDataAssets> {
+    const where: any = {}
+    if (type) {
+      where[attributesAsset.asset_type] = { [Op.in]: [type] }
+    }
+
+    if (search) {
+      where[attributesAsset.official_name] = { [Op.iLike]: `${search}%` }
+    }
     const assets : Asset[] = await this.assetRepository.get({
-      where: {
-        [attributesAsset.asset_type] : { [Op.in]: [type] },
-        [attributesAsset.official_name]: { [Op.startsWith]: search }
-      },
+      where,
       offset : offset,
       limit : limit,
       order: [
@@ -54,20 +59,31 @@ export class AssetService {
       }
     }))
 
-    const length = (await this.assetRepository.get({
-      where: {
-        [attributesAsset.asset_type] : { [Op.in]: [type] },
-        [attributesAsset.official_name]: { [Op.startsWith]: search }
-      },
-    })).length
+    const length = (await this.assetRepository.get({ where })).length
     return { length , assets :  metaDataAssets }
   }
 
   public async createAsset(asset: AssetDatabaseModel) : Promise<AssetShort> {
+    const exist = await this.assetRepository.getAssetFromTicker(asset.ticker_name!)
+    if( exist ) {
+      throw Error("ALREADY_EXIST")
+    }
+    const exist1 = await this.assetRepository.getAssetFromOfficialName(asset.official_name!)
+    if( exist1 ) {
+      throw Error("ALREADY_EXIST")
+    }
     return this.assetRepository.addAssetFromAssetToDatabase(asset);
   }
 
   public async updateAsset(uuid: string, asset: AssetDatabaseModel): Promise<AssetShort | null> {
+    const exist1 = await this.assetRepository.getAssetFromOfficialName(asset.official_name!)
+    if( exist1 && exist1.uuid != uuid ) {
+      throw Error("ALREADY_EXIST")
+    }
+    const exist = await this.assetRepository.getAssetFromTicker(asset.ticker_name!)
+    if( exist && exist.uuid != uuid ) {
+      throw Error("ALREADY_EXIST")
+    }
     return this.assetRepository.patchAssetInfo(uuid, asset);
   }
 
