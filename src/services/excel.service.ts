@@ -8,7 +8,6 @@ import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "..
 import { DateService } from ".";
 import {
   AssetRepository,
-  AssetPriceRepository,
   CountryAlliasRepository,
   CountryRepository,
   SectorAlliasRepository,
@@ -21,14 +20,14 @@ import { AssetType } from "../dtos";
 import { ETFHolding } from "../dtos/asset/etf_concentration";
 import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LAST_POINT, TICKER_DELETE_POINT, TICKER_REPLACE_MULTIPLE_SPACES } from "../constants/regex";
 import { RfrCountryService } from "./rfr/rfr_country.service";
-import { AssetPriceService } from "./asset_price.service";
+import { AssetPriceService } from "./asset/asset_price.service";
 
 export class ExcelService {
   private readonly constantPath: string = "../asset/excel/";
   private readonly jsonConstantPath: string = "../asset/json/";
 
   private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
-  private defaultETFTicker: string[] = []//["IVV", "QQQM","IEUR","IEMG"]
+  private defaultETFTicker: string[] = []//"IVV","QQQM"]//["IVV", "QQQM","IEUR","IEMG"]
 
   private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
 
@@ -59,10 +58,10 @@ export class ExcelService {
   async addDataFromAdmin() {
     await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
-    //await this.addRiskFreeRateToDatabase();
+    await this.addRiskFreeRateToDatabase();
     await this.addAdminStocksToDatabase();
     await this.addPricesForAdminAsset();
-    //await this.addConcentrationForAdminEtf();
+    await this.addConcentrationForAdminEtf();
   }
 
   openExcelFile(filePath: string, workSheetName: string | undefined): XLSX.WorkSheet {

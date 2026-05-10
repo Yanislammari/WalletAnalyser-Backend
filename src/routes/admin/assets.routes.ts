@@ -5,6 +5,7 @@ const AssetAdminRoutes = (): Router => {
   const router: Router = Router();
   const assetController = new AssetController();
 
+  router.get("/etf-holdings/:etf_uuid", (req, res) => assetController.getEtfHolding(req,res))
   router.get("/", (req, res) => assetController.getAllAssets(req, res));
   router.post("/", (req, res) => assetController.createAsset(req, res));
   router.patch("/:uuid", (req, res) => assetController.updateAsset(req, res));

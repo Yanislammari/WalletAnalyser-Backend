@@ -1,15 +1,42 @@
-import { EtfHoldingsAsset } from "../../db_schema";
+import { Op } from "sequelize";
+import { Asset, attributesAsset, attributesCountry, attributesSector, Country, EtfHoldingsAsset, Sector } from "../../db_schema";
 import { attributesEtfHoldingsAsset } from "../../db_schema/asset/etf_holdings";
+import { BaseRepository } from "../base.repository";
 
-export class EtfHoldingsRepository {
-  constructor() {}
+export class EtfHoldingsRepository extends BaseRepository<EtfHoldingsAsset> {
+  constructor() {
+    super(EtfHoldingsAsset)
+  }
 
   async getEtfHoldingsFromEtf(etf_uuid: string): Promise<EtfHoldingsAsset[]> {
     try {
       const etfHoldings = await EtfHoldingsAsset.findAll({
         where: {
           [attributesEtfHoldingsAsset.etf_uuid]: etf_uuid,
+          [attributesEtfHoldingsAsset.asset_percentage_concentration_in_etf] : {[Op.gte] : 0.01}
         },
+        order : [
+          [attributesEtfHoldingsAsset.asset_percentage_concentration_in_etf, "DESC"],
+        ],
+        attributes : [attributesEtfHoldingsAsset.uuid, attributesEtfHoldingsAsset.asset_percentage_concentration_in_etf],
+        include: [{
+          model: Asset,
+          as: "asset",
+          required: true,
+          attributes : [attributesAsset.uuid, attributesAsset.official_name],
+          include : [
+            {
+              model : Sector,
+              as : "sector",
+              attributes : [ attributesSector.uuid, attributesSector.sector_name]
+            },
+            {
+              model : Country,
+              as : "country",
+              attributes : [ attributesCountry.uuid, attributesCountry.country_name]
+            }
+          ]
+        }]
       });
       return etfHoldings;
     } catch (error) {
@@ -33,7 +60,7 @@ export class EtfHoldingsRepository {
     }
   }
 
-  async createEtfHoldings(etf_uuid: string, asset_uuid: string, asset_percentatge_concentration_in_etf: number): Promise<EtfHoldingsAsset> {
+  async createEtfHoldings(etf_uuid: string, asset_uuid: string, asset_percentage_concentration_in_etf: number): Promise<EtfHoldingsAsset> {
     try {
       const existingEtfHoldings = await this.getEtfHoldings(asset_uuid, etf_uuid);
       if (existingEtfHoldings) {
@@ -42,7 +69,7 @@ export class EtfHoldingsRepository {
       const newEtfHoldings = await EtfHoldingsAsset.create({
         [attributesEtfHoldingsAsset.etf_uuid]: etf_uuid,
         [attributesEtfHoldingsAsset.asset_uuid]: asset_uuid,
-        [attributesEtfHoldingsAsset.asset_percentatge_concentration_in_etf]: asset_percentatge_concentration_in_etf,
+        [attributesEtfHoldingsAsset.asset_percentage_concentration_in_etf]: asset_percentage_concentration_in_etf,
       });
       return newEtfHoldings;
     } catch (error) {

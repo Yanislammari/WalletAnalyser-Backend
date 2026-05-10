@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AssetPriceService } from "../services/asset_price.service";
+import { AssetPriceService } from "../services/asset/asset_price.service";
 
 class AssetPriceController {
   private readonly assetPriceService: AssetPriceService;

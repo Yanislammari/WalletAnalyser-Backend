@@ -1,13 +1,15 @@
 import { Request, Response } from "express";
-import { AssetService } from "../services/asset.service";
+import { AssetService } from "../services/asset/asset.service";
+import { EtfService } from '../services/asset/etf_service';
 import { AssetDatabaseModel } from "../models";
-import { AssetType } from "../dtos";
 
 class AssetController {
   private readonly assetService: AssetService;
+  private readonly etfService : EtfService;
 
   constructor() {
     this.assetService = new AssetService();
+    this.etfService = new  EtfService();
   }
 
   public async getAllAssets(req: Request, res: Response): Promise<Response> {
@@ -18,6 +20,18 @@ class AssetController {
       const search = req.query.search as string | undefined;
 
       const response = await this.assetService.getAssets(type, offset, limit, search);
+      return res.status(200).json(response);
+    } catch (error) {
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getEtfHolding(req : Request, res : Response): Promise<Response> {
+    try {
+      const etf_uuid = req.params.etf_uuid as string
+
+      const response = await this.etfService.getConcentrationETF(etf_uuid);
       return res.status(200).json(response);
     } catch (error) {
       console.log(error)

@@ -1,10 +1,10 @@
-import { AssetPriceRepository, AssetRepository } from "../repositories";
-import { AssetPrice, attributesAssetPrice } from "../db_schema";
-import { MetaDataAssetPrice } from "../dtos/asset/asset_price";
+import { AssetPriceRepository, AssetRepository } from "../../repositories";
+import { AssetPrice, attributesAssetPrice } from "../../db_schema";
+import { MetaDataAssetPrice } from "../../dtos/asset/asset_price";
 import { Op } from "sequelize";
-import { DateService } from "./date.service";
-import { MarketstackController } from '../controllers/marketstack/marketstack.controller';
-import { AssetPriceCompletModel, AssetPriceModel } from "../models";
+import { DateService } from "./../date.service";
+import { MarketstackController } from '../../controllers/marketstack/marketstack.controller';
+import { AssetPriceCompletModel, AssetPriceModel } from "../../models";
 
 export class AssetPriceService {
   private readonly assetPriceRepository: AssetPriceRepository;

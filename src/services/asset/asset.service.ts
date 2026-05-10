@@ -1,11 +1,10 @@
-import { AssetRepository } from "./../repositories/asset/asset.repository";
-import { AssetDatabaseModel } from "../models";
-import { Asset, attributesAsset } from "../db_schema";
+import { AssetRepository } from "./../../repositories/asset/asset.repository";
+import { AssetDatabaseModel } from "../../models";
+import { Asset, attributesAsset } from "../../db_schema";
 import { Op } from "sequelize";
-import { AssetShort, MetaDataAssets, MetaDataAssetShort } from "../dtos";
-import { AssetPriceRepository } from "../repositories";
-import { sequelize } from "../config";
-import { uuid } from "zod";
+import { AssetShort, MetaDataAssets, MetaDataAssetShort } from "../../dtos";
+import { AssetPriceRepository } from "../../repositories";
+import { sequelize } from "../../config";
 
 export class AssetService {
   private readonly assetRepository: AssetRepository;

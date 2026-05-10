@@ -2,7 +2,7 @@ import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { Currency } from "../currencies/currency";
 import { Sector } from "../sector/sector";
-import { Country } from "../country/country";
+import { Country } from '../country/country';
 import { AssetType } from "../../dtos";
 
 export enum UserType {
@@ -31,6 +31,8 @@ export class Asset extends Model {
   public official_name!: string;
   public sector_uuid!: string;
   public country_uuid!: string;
+  public country! : Country
+  public sector! : Sector
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -84,6 +86,6 @@ Asset.init(
   }
 );
 
-Asset.belongsTo(Currency, { as: "base_currency", foreignKey: attributesAsset.base_currency_uuid });
-Asset.belongsTo(Sector, { as: "sector", foreignKey: attributesAsset.sector_uuid });
-Asset.belongsTo(Country, { as: "country", foreignKey: attributesAsset.country_uuid });
+Asset.belongsTo(Currency, { as: "base_currency", foreignKey: attributesAsset.base_currency_uuid, onDelete : "SET NULL" });
+Asset.belongsTo(Sector, { as: "sector", foreignKey: attributesAsset.sector_uuid, onDelete : "SET NULL" });
+Asset.belongsTo(Country, { as: "country", foreignKey: attributesAsset.country_uuid, onDelete : "SET NULL" });
