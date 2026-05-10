@@ -1,4 +1,4 @@
-import { EtfHoldingsAsset } from "../../db_schema";
+import { Asset, EtfHoldingsAsset } from "../../db_schema";
 
 export interface ETFHolding {
   investment_security: ETFconcentration;
@@ -23,8 +23,22 @@ export interface CountryConcentrationEtf {
 }
 
 
-export interface EtfMetaData {
+export interface EtfconcentrationMetaData {
+  etf : Asset
   etf_asset : EtfHoldingsAsset[]
+  length : number
   sector_concentrations : SectorConcentrationEtf[]
   country_concentrations : CountryConcentrationEtf[]
+}
+
+export interface EtfAssetMetaData {
+  etf_asset : EtfHoldingsAsset[]
+  length : number
+}
+
+export interface EtfPatchAssetPayload {
+  asset_percentage_concentration_in_etf : number
+  sector_uuid : string
+  country_uuid : string
+  asset_uuid : string
 }

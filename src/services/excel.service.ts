@@ -27,7 +27,7 @@ export class ExcelService {
   private readonly jsonConstantPath: string = "../asset/json/";
 
   private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
-  private defaultETFTicker: string[] = []//"IVV","QQQM"]//["IVV", "QQQM","IEUR","IEMG"]
+  private defaultETFTicker: string[] = ["IVV","QQQM"]//["IVV", "QQQM","IEUR","IEMG"]
 
   private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
 
@@ -59,8 +59,8 @@ export class ExcelService {
     await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
     await this.addRiskFreeRateToDatabase();
-    await this.addAdminStocksToDatabase();
-    await this.addPricesForAdminAsset();
+    //await this.addAdminStocksToDatabase();
+    //await this.addPricesForAdminAsset();
     await this.addConcentrationForAdminEtf();
   }
 
