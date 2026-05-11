@@ -2,7 +2,9 @@ import { Request, Response } from "express";
 import { AssetService } from "../services/asset/asset.service";
 import { EtfService } from '../services/asset/etf_service';
 import { AssetDatabaseModel } from "../models";
-import { EtfPatchAssetPayload } from "../dtos";
+import { EtfPatchAssetPayload, EtfPostHolding } from "../dtos";
+import path from "path";
+import fs from "fs"
 
 class AssetController {
   private readonly assetService: AssetService;
@@ -53,6 +55,69 @@ class AssetController {
     }
   }
 
+  public async getExcelTemplate(req : Request, res : Response):  Promise<void | Response> {
+    try {
+      const filePath = path.join(
+        process.cwd(),
+        "src/asset/json/IVV_holdings.json"
+      );
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({message: "File not found"});
+      }
+      res.download(filePath, "forex_template.xlsx");
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async updateEtfConcentration(req : Request, res : Response): Promise<Response> {
+    try {
+      const payload = req.body as string
+      const etf_uuid = req.params.etf_uuid as string
+      const response = await this.etfService.updateAllEtfHolding(payload, etf_uuid)
+      return res.status(200).json(response)
+    } catch (error) {
+      if(error instanceof Error && error.message.includes("Cannot read properties of undefined")) {
+        return res.status(500).json({ message : "Wrong format please refer to the json exemple"})
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async addEtfHolding(req: Request, res : Response): Promise<Response> {
+    try {
+      const etf_uuid = req.params.etf_uuid as string;
+      const payload = req.body as EtfPostHolding; 
+      const updatedAsset = await this.etfService.postEtfHolding(payload, etf_uuid);
+      if (!updatedAsset) {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      return res.status(200).json(updatedAsset);
+    } catch (error) {
+      if(error instanceof Error && error.message == "ABOVE_100"){
+        return res.status(500).json({message : "This value is too high and put the total above 100%"})
+      }
+      if(error instanceof Error && error.message == "ALREADY_IN_ETF"){
+        return res.status(500).json({message : "This value is already in the etf"})
+      }
+      if( error instanceof Error && error.message == "ASSET_IS_ETF") {
+        return res.status(500).json({ message: "This asset is an ETF and cannot be added" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async deleteEtfHolding(req : Request, res : Response): Promise<Response> {
+    try {
+      const etf_holdings_uuid = req.params.etf_holding_uuid as string;
+      const response = await this.etfService.deleteEtfHolding(etf_holdings_uuid)
+      return res.status(200).json({ message : "Holding deleted successfully"})
+    } catch (error) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async createAsset(req: Request, res: Response): Promise<Response> {
     try {
       const asset = new AssetDatabaseModel(
@@ -86,6 +151,9 @@ class AssetController {
     } catch (error) {
       if(error instanceof Error && error.message == "ABOVE_100"){
         return res.status(500).json({message : "This value is too high and put the total above 100%"})
+      }
+      if(error instanceof Error && error.message == "ASSET_IS_ETF") {
+        return res.status(500).json({message : "This asset is an etf and cannot be modify"})
       }
       return res.status(500).json({ message: "Internal server error" });
     }

@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx";
 import path from "path";
 import countries from "world-countries";
-import fs from "fs";
-import { Asset } from "../db_schema";
+import fs, { cpSync } from "fs";
+import { Asset, attributesEtfHoldingsAsset } from "../db_schema";
 import { MarketstackController } from "../controllers";
 import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
 import { DateService } from ".";
@@ -17,7 +17,7 @@ import {
   ForexRepository,
 } from "../repositories";
 import { AssetType } from "../dtos";
-import { ETFHolding } from "../dtos/asset/etf_concentration";
+import { ETFHolding, MatchingNames } from "../dtos/asset/etf_concentration";
 import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LAST_POINT, TICKER_DELETE_POINT, TICKER_REPLACE_MULTIPLE_SPACES } from "../constants/regex";
 import { RfrCountryService } from "./rfr/rfr_country.service";
 import { AssetPriceService } from "./asset/asset_price.service";
@@ -295,7 +295,19 @@ export class ExcelService {
   }
 
   async matchETFHoldingsAndDBasset(etfHoldingName: string): Promise<Asset | null> {
-    let asset = await this.assetRepository.getClosestAssetFromOfficialName(etfHoldingName);
+    const fixedName: MatchingNames[] = [
+      {name_json : "Apple, Inc", name_db : "Apple Inc"},
+      {name_json : "PPL Corp.", name_db: "PPL Corp"}
+    ]
+    const find = fixedName.find((value) => value.name_json == etfHoldingName)
+    let asset;
+    if(find) {  
+      asset = await this.assetRepository.getAssetFromOfficialName(find?.name_db);
+    }
+    if(asset) {
+      return asset
+    }
+    asset = await this.assetRepository.getClosestAssetFromOfficialName(etfHoldingName);
     let alliasName = null;
     if (asset == null) {
       alliasName = etfHoldingName
@@ -332,47 +344,60 @@ export class ExcelService {
   async addConcentrationForAdminEtf() {
     // take 30 seconds / per 100 stocks
     for (const ticker of this.defaultETFTicker) {
-      try {
-        const data = fs.readFileSync(path.join(__dirname, this.jsonConstantPath, `${ticker}_holdings.json`), "utf-8");
-        const holdings = JSON.parse(data);
-        let etf = await this.assetRepository.getAssetFromTicker(ticker);
-        if (etf == null) {
-          const name = holdings.basics.fund_name;
-          etf = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(name, ticker, AssetType.ETF, null, null, null));
-        }
-        const existingHoldings = await this.etfHoldingsRepository.getEtfHoldingsFromEtf(etf.uuid);
-        if (existingHoldings.length > 0) {
-          continue;
-        }
-        console.log("Adding concentration for etf ", ticker);
-        const holdingsList = holdings.output.holdings as ETFHolding[];
-        for (const holding of holdingsList) {
-          let asset = await this.matchETFHoldingsAndDBasset(holding.investment_security.name);
-          if (asset == null) {
-            asset = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(holding.investment_security.name, null, null, null, null, null));
-          }
-          const assetDatabase = new AssetDatabaseModel(
-            asset ? asset.official_name : holding.investment_security.name,
-            asset ? asset.ticker_name : null,
-            Object.values(AssetType).includes(asset?.asset_type as AssetType) ? (asset.asset_type as AssetType) : null,
-            asset ? asset.sector_uuid : null,
-            asset ? asset.country_uuid : null,
-            asset ? asset.base_currency_uuid : null
-          );
-          const geographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(holding.investment_security.name, this.stocksSheetNameEn, this.assetNameColumnIndex);
-          if (geographicSector?.sector_name && !assetDatabase.sector_uuid) {
-            let sectorInDb = await this.sectorRepository.getSectorByName(geographicSector.sector_name);
-            assetDatabase.sector_uuid = sectorInDb?.uuid ?? null;
-          }
-          if (!assetDatabase.country_uuid) {
-            const country = await this.countryRepository.getCountryByName(holding.investment_security.invested_country);
-            assetDatabase.country_uuid = country?.uuid ?? null;
-          }
-          asset = await this.assetRepository.patchAssetInfo(asset.uuid, assetDatabase);
-          await this.etfHoldingsRepository.createEtfHoldings(etf.uuid, asset!.uuid, holding.investment_security.percent_value);
-        }
-      } catch (error) {
-        console.error(`Error while adding concentration for etf ${ticker}`, error);
+      const data = fs.readFileSync(path.join(__dirname, this.jsonConstantPath, `${ticker}_holdings.json`), "utf-8");
+      const holdings = JSON.parse(data);
+      let etf = await this.assetRepository.getAssetFromTicker(ticker);
+      if (etf == null) {
+        const name = holdings.basics.fund_name;
+        etf = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(name, ticker, AssetType.ETF, null, null, null));
+      }
+      const existingHoldings = await this.etfHoldingsRepository.getEtfHoldingsFromEtf(etf.uuid);
+      if (existingHoldings.length > 0) {
+        continue;
+      }
+
+      console.log("Adding concentration for etf ", ticker);
+      await this.updateAllConcentrationForEtf( holdings, etf )
+    }
+  }
+
+  async updateAllConcentrationForEtf(holdings : any, etf : Asset ){
+    await this.etfHoldingsRepository.deleteAllHoldingsOfAnEtf(etf.uuid)
+    const holdingsList = holdings.output.holdings as ETFHolding[];
+    for (const holding of holdingsList) {
+      let asset = await this.matchETFHoldingsAndDBasset(holding.investment_security.name);
+      if (asset == null) {
+        asset = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(holding.investment_security.name, null, null, null, null, null));
+      }
+      const assetDatabase = new AssetDatabaseModel(
+        asset ? asset.official_name : holding.investment_security.name,
+        asset ? asset.ticker_name : null,
+        Object.values(AssetType).includes(asset?.asset_type as AssetType) ? (asset.asset_type as AssetType) : null,
+        asset ? asset.sector_uuid : null,
+        asset ? asset.country_uuid : null,
+        asset ? asset.base_currency_uuid : null
+      );
+      const geographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(holding.investment_security.name, this.stocksSheetNameEn, this.assetNameColumnIndex);
+      if (geographicSector?.sector_name && !assetDatabase.sector_uuid) {
+        let sectorInDb = await this.sectorRepository.getSectorByName(geographicSector.sector_name);
+        assetDatabase.sector_uuid = sectorInDb?.uuid ?? null;
+      }
+      if (!assetDatabase.country_uuid) {
+        const country = await this.countryRepository.getCountryByName(holding.investment_security.invested_country);
+        assetDatabase.country_uuid = country?.uuid ?? null;
+      }
+      asset = await this.assetRepository.patchAssetInfo(asset.uuid, assetDatabase);
+      if(!asset) {
+        throw new Error("NO_ASSET")
+      }
+      const existEtfHolding = await this.etfHoldingsRepository.getEtfHoldings(asset.uuid, etf.uuid)
+      if( existEtfHolding ) {
+        await this.etfHoldingsRepository.update(existEtfHolding.uuid, {
+          [attributesEtfHoldingsAsset.asset_percentage_concentration_in_etf] : holding.investment_security.percent_value
+        })
+      }
+      else {
+        await this.etfHoldingsRepository.createEtfHoldings(etf.uuid, asset.uuid, holding.investment_security.percent_value);
       }
     }
   }

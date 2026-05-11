@@ -151,4 +151,10 @@ export class EtfHoldingsRepository extends BaseRepository<EtfHoldingsAsset> {
       throw error;
     }
   }
+
+  async deleteAllHoldingsOfAnEtf(etf_uuid : string) {
+    await EtfHoldingsAsset.destroy({
+      where : { [attributesEtfHoldingsAsset.etf_uuid] : etf_uuid }
+    })
+  }
 }
