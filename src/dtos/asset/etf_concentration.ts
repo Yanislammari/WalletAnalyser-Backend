@@ -13,6 +13,7 @@ interface ETFconcentration {
   name: string;
   percent_value: number;
   invested_country: string;
+  title : string;
 }
 
 export interface SectorConcentrationEtf {

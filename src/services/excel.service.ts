@@ -294,17 +294,24 @@ export class ExcelService {
     }
   }
 
-  async matchETFHoldingsAndDBasset(etfHoldingName: string): Promise<Asset | null> {
+  async matchETFHoldingsAndDBasset(etfHoldingName: string, title : string): Promise<Asset | null> {
     const fixedName: MatchingNames[] = [
       {name_json : "Apple, Inc", name_db : "Apple Inc"},
-      {name_json : "PPL Corp.", name_db: "PPL Corp"}
+      {name_json : "PPL Corp.", name_db: "PPL Corp"},
     ]
-    const find = fixedName.find((value) => value.name_json == etfHoldingName)
+    const fixedTitle: MatchingNames[] = [
+      {name_json : "Alphabet, Inc., Class A", name_db : "Alphabet Inc - Class A"},
+      {name_json : "Alphabet, Inc., Class C", name_db: "Alphabet Inc - Class C"},
+    ]
     let asset;
-    if(find) {  
-      asset = await this.assetRepository.getAssetFromOfficialName(find?.name_db);
+    const findName = fixedName.find((value) => value.name_json == etfHoldingName)
+    if(findName) {  
+      asset = await this.assetRepository.getAssetFromOfficialName(findName?.name_db);
+      return asset
     }
-    if(asset) {
+    const findTitle = fixedTitle.find((value) => value.name_json == title)
+    if(findTitle) {
+      asset = await this.assetRepository.getAssetFromOfficialName(findTitle?.name_db);
       return asset
     }
     asset = await this.assetRepository.getClosestAssetFromOfficialName(etfHoldingName);
@@ -365,7 +372,7 @@ export class ExcelService {
     await this.etfHoldingsRepository.deleteAllHoldingsOfAnEtf(etf.uuid)
     const holdingsList = holdings.output.holdings as ETFHolding[];
     for (const holding of holdingsList) {
-      let asset = await this.matchETFHoldingsAndDBasset(holding.investment_security.name);
+      let asset = await this.matchETFHoldingsAndDBasset(holding.investment_security.name, holding.investment_security.title);
       if (asset == null) {
         asset = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(holding.investment_security.name, null, null, null, null, null));
       }
