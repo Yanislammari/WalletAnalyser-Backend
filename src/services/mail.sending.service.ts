@@ -39,6 +39,26 @@ class MailSendingService {
     await this.mailjetService.sendEmail(user.email, subject, htmlBody);
   }
 
+  public async sendActivateAccountEmail(email: string): Promise<void> {
+    const user: User | null = await this.userRepository.getByEmail(email);
+    if (!user) {
+      throw new Error("EMAIL_NOT_FOUND");
+    }
+  
+    const token: string = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: "24h" });
+    const activationLink: string = `${FRONTEND_URL_PROD}/activate-account?token=${token}`;
+    const subject: string = "Activate Your Account";
+    let htmlBody = await this.azureBlobService.getFileAsString("templates", "activate-account.html");
+  
+    htmlBody = htmlBody
+      .replace(/\${userName}/g, `${user.first_name} ${user.last_name}` || "User")
+      .replace(/\${activationLink}/g, activationLink)
+      .replace(/\${frontendUrl}/g, FRONTEND_URL_PROD)
+      .replace(/\${year}/g, new Date().getFullYear().toString());
+
+    await this.mailjetService.sendEmail(user.email, subject, htmlBody);
+  }
+
   public async send2FAPassword(user: User,code : string): Promise<void> {
     if (!user) {
       throw new Error("EMAIL_NOT_FOUND");

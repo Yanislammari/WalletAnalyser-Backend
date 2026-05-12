@@ -1,13 +1,18 @@
-import express, { Router } from "express";
+import { AzureAppInsightsService } from "./services/azure.app.insights.service";
+import express, { Router, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
 import AuthRoutes from "./routes/auth.routes";
+import PortfolioRoutes from "./routes/portfolio.routes";
+import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
+
+AzureAppInsightsService.init();
 
 dotenv.config();
 const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as string[];
@@ -61,6 +66,8 @@ app.use((err: any, req: any, res: any, next: any) => {
 app.use("/auth", AuthRoutes());
 app.use("/sector",SectorsRoutes());
 app.use("/country",CountriesRoutes());
+app.use("/portfolio", PortfolioRoutes());
+app.use("/currency", CurrencyRoutes());
 app.use("/admin", AdminRoutes());
 
 export default app;

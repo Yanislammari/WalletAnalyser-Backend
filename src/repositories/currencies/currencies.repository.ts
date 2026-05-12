@@ -2,9 +2,13 @@ import { attributesCurrency, attributesForexRate, Currency, ForexRate } from "..
 import { attributesForex, Forex } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 
-export class CurrenciesRepository extends BaseRepository<Currency>{
+export class CurrenciesRepository extends BaseRepository<Currency> {
   constructor() {
-    super(Currency)
+    super(Currency);
+  }
+
+  public async getByName(name: string): Promise<Currency | null> {
+    return this.model.findOne({ where: { currency_name: name } });
   }
 
   async getForexFromDb(baseCurrency: string, quoteCurrency: string): Promise<Forex | null> {

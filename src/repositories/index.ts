@@ -12,3 +12,7 @@ export * from "./currencies/currencies.repository";
 export * from "./currencies/forex.repository";
 export * from "./user.repository";
 export * from "./rfr/rfr_country.repository";
+export * from "./portfolio/portfolio.repository";
+export * from "./portfolio/user.asset.buy.repository";
+export * from "./portfolio/user.asset.sell.repository";
+export * from "./portfolio/user.asset.dividend.repository";

@@ -19,6 +19,8 @@ const AuthRoutes = (): Router => {
   router.post("/reset-password", async (req, res) => authController.resetPassword(req, res));
   router.post("/admin-change-password",createVerifyTokenAdminMiddleware(),async (req, res) => authController.changePasswordAdmin(req, res));
   router.post("/verify-token", async (req, res) => authController.verifyToken(req, res));
+  router.post("/send-activate-account-email", async (req, res) => authController.sendActivateAccountEmail(req, res));
+  router.post("/activate-account", async (req, res) => authController.activateAccount(req, res));
   router.post("/verify-token-admin", async (req, res) => authController.verifyTokenAdmin(req, res));
 
   return router;

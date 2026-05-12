@@ -15,6 +15,9 @@
   "description": "",
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
+    "@microsoft/applicationinsights-react-js": "^19.4.0",
+    "@microsoft/applicationinsights-web": "^3.4.1",
+    "applicationinsights": "^3.14.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
