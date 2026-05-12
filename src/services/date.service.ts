@@ -1,4 +1,8 @@
+import { AssetPriceRepository, AssetRepository } from "../repositories";
+
 export class DateService {
+  private readonly assetRepository : AssetRepository = new AssetRepository()
+    private readonly assetPriceRepository : AssetPriceRepository = new AssetPriceRepository()
   constructor() {}
 
   formatDateToDDMMYYYY(date: Date): string {
@@ -27,4 +31,23 @@ export class DateService {
     const todayUtc0 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours()));
     return todayUtc0;
   }
+
+  async isAssetPriceUpToDate(ticker: string): Promise<boolean> {
+      try {
+        const asset = await this.assetRepository.getAssetFromTicker(ticker);
+        if (asset) {
+          const assetLatestPriceData = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
+          let latestDate = new Date(0);
+          if (assetLatestPriceData) {
+            latestDate = assetLatestPriceData.asset_price_date;
+          }
+          // Our current date must substract one to it
+          return this.isLatestPriceMoreRecentThanToday(this.getDateAtUtc0(), latestDate); // if false we refetch
+        }
+        return false;
+      } catch (error) {
+        console.error(`Error while checking stock ${ticker}`, error);
+        throw error;
+      }
+    }
 }
