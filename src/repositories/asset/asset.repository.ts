@@ -1,9 +1,12 @@
 import { Op } from "sequelize";
 import { Asset, attributesAsset } from "../../db_schema";
 import { AssetDatabaseModel } from "../../models";
+import { BaseRepository } from "../base.repository";
 
-export class AssetRepository {
-  constructor() {}
+export class AssetRepository extends BaseRepository<Asset> {
+  constructor() {
+    super(Asset)
+  }
 
   async getAllAssets(): Promise<Asset[]> {
     try {
@@ -151,6 +154,63 @@ export class AssetRepository {
     } catch (error) {
       console.error(`Error patching asset with uuid ${asset_uuid} in the database:`, error);
       return null;
+    }
+  }
+
+  async removeAsset(asset_uuid: string): Promise<boolean> {
+    try {
+      const asset = await this.getAssetFromUUID(asset_uuid);
+      if (!asset) {
+        return false;
+      }
+      await asset.destroy();
+      return true;
+    } catch (error) {
+      console.error(`Error deleting asset with uuid ${asset_uuid} from the database:`, error);
+      return false;
+    }
+  }
+
+  async getAssets(type?: string, offset = 0, limit = 100, search?: string): Promise<{ assets: Asset[]; length: number }> {
+    try {
+      const where: any = {};
+
+      if (type) {
+        where[attributesAsset.asset_type] = type;
+      }
+
+      if (search) {
+        where[Op.or] = [
+          {
+            [attributesAsset.ticker_name]: {
+              [Op.iLike]: `%${search}%`,
+            },
+          },
+          {
+            [attributesAsset.official_name]: {
+              [Op.iLike]: `%${search}%`,
+            },
+          },
+        ];
+      }
+
+      const result = await Asset.findAndCountAll({
+        where,
+        limit,
+        offset,
+        order: [[attributesAsset.official_name, "ASC"]],
+      });
+
+      return {
+        assets: result.rows,
+        length: result.count,
+      };
+    } catch (error) {
+      console.error("Error fetching assets from the database:", error);
+      return {
+        assets: [],
+        length: 0,
+      };
     }
   }
 }

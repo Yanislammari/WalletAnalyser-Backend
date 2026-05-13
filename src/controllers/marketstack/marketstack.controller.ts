@@ -19,7 +19,6 @@ export class MarketstackController {
       }
       return await response.json();
     } catch (error) {
-      console.error(`Error fetching data from Marketstack API:`, error);
       throw error;
     }
   }
@@ -50,8 +49,10 @@ export class MarketstackController {
 
         return new AssetPriceModel(new Date(item.date), item.adj_close);
       });
-    } catch (error) {
-      console.error(`Error fetching historical data for ${ticker}:`, error);
+    } catch (error : any) {
+      if(error.message.includes("404")) {
+        throw Error("UNFOUND_TICKER")
+      }
       throw error;
     }
   }
