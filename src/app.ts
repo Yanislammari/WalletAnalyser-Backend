@@ -4,11 +4,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
-import { UserRepository } from "./repositories";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
+import ImportRoutes from "./routes/import.routes";
 
 AzureAppInsightsService.init();
 
@@ -58,5 +58,6 @@ app.use("/auth", AuthRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
 app.use("/admin", AdminRoutes());
+app.use("/import", ImportRoutes());
 
 export default app;
