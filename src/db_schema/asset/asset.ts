@@ -5,12 +5,6 @@ import { Sector } from "../sector/sector";
 import { Country } from '../country/country';
 import { AssetType } from "../../dtos";
 
-export enum UserType {
-  USER = "USER",
-  ADMIN = "ADMIN",
-  SUPER_USER = "SUPER_USER"
-}
-
 export const attributesAsset = {
   uuid: "uuid",
   base_currency_uuid: "base_currency_uuid",

@@ -1,6 +1,7 @@
 export * from "./currencies/currency";
 export * from "./currencies/forex";
 export * from "./currencies/forex_rate";
+export * from "./asset/asset_cluster"
 export * from "./asset/asset";
 export * from "./asset/asset_allias";
 export * from "./asset/etf_holdings";
