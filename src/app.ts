@@ -9,6 +9,7 @@ import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
 import ImportRoutes from "./routes/import.routes";
+import AssetRoutes from "./routes/asset.routes";
 
 AzureAppInsightsService.init();
 
@@ -59,5 +60,6 @@ app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
 app.use("/admin", AdminRoutes());
 app.use("/import", ImportRoutes());
+app.use("/asset", AssetRoutes());
 
 export default app;

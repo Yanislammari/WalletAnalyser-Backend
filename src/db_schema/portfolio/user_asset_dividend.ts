@@ -2,10 +2,13 @@ import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { Portfolio } from "./portfolio";
 import { Currency } from "../currencies/currency";
+import { Asset } from "../asset/asset";
 
 export const attributesUserAssetDividend = {
   uuid: "uuid",
   portfolio_uuid: "portfolio_uuid",
+  asset_uuid: "asset_uuid",
+  company_name: "company_name",
   currency_uuid: "currency_uuid",
   cashflow_date: "cashflow_date",
   cashflow_amount: "cashflow_amount",
@@ -16,6 +19,8 @@ export const attributesUserAssetDividend = {
 export class UserAssetDividend extends Model {
   public uuid!: string;
   public portfolio_uuid!: string;
+  public asset_uuid!: string | null;
+  public company_name!: string | null;
   public currency_uuid!: string;
   public cashflow_date!: Date;
   public cashflow_amount!: number;
@@ -38,6 +43,18 @@ UserAssetDividend.init(
         key: "uuid",
       },
       onDelete: "CASCADE",
+    },
+    asset_uuid: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: Asset,
+        key: "uuid",
+      },
+    },
+    company_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     currency_uuid: {
       type: DataTypes.UUID,
@@ -63,5 +80,6 @@ UserAssetDividend.init(
 
 UserAssetDividend.belongsTo(Portfolio, { as: "portfolio", foreignKey: attributesUserAssetDividend.portfolio_uuid });
 UserAssetDividend.belongsTo(Currency, { as: "currency", foreignKey: attributesUserAssetDividend.currency_uuid });
+UserAssetDividend.belongsTo(Asset, { as: "asset", foreignKey: attributesUserAssetDividend.asset_uuid });
 
 Portfolio.hasMany(UserAssetDividend, { foreignKey: "portfolio_uuid", onDelete: "CASCADE", hooks: true });

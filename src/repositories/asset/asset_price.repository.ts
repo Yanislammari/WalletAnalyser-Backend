@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { AssetPrice, attributesAssetPrice } from "../../db_schema";
 
 export class AssetPriceRepository {
@@ -15,6 +16,21 @@ export class AssetPriceRepository {
       return existingAssetPrice;
     } catch (error) {
       console.error("Error fetching the price on a spe date:", error);
+      throw error;
+    }
+  }
+
+  async getClosestPriceBeforeOrAt(assetUuid: string, date: Date): Promise<AssetPrice | null> {
+    try {
+      return await AssetPrice.findOne({
+        where: {
+          [attributesAssetPrice.asset_uuid]: assetUuid,
+          [attributesAssetPrice.asset_price_date]: { [Op.lte]: date },
+        },
+        order: [[attributesAssetPrice.asset_price_date, "DESC"]],
+      });
+    }
+    catch (error) {
       throw error;
     }
   }

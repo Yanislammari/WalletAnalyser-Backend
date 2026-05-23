@@ -3,6 +3,7 @@ import { PortfolioRepository } from "../../repositories/portfolio/portfolio.repo
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
+import { AssetRepository } from "../../repositories/asset/asset.repository";
 import { AddPortfolioRequestDto } from "../../dtos/portfolio/requests/add.portfolio.request.dto";
 import { AddAssetBuyRequestDto } from "../../dtos/portfolio/requests/add.asset.buy.request.dto";
 import { AddAssetSellRequestDto } from "../../dtos/portfolio/requests/add.asset.sell.request.dto";
@@ -17,12 +18,14 @@ import { Portfolio } from "../../db_schema/portfolio/portfolio";
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
+import { Asset } from "../../db_schema";
 
 export class PortfolioService {
   private readonly portfolioRepository: PortfolioRepository;
   private readonly userAssetBuyRepository: UserAssetBuyRepository;
   private readonly userAssetSellRepository: UserAssetSellRepository;
   private readonly userAssetDividendRepository: UserAssetDividendRepository;
+  private readonly assetRepository: AssetRepository;
   private readonly portfolioMapper: PortfolioMapper;
 
   constructor() {
@@ -30,6 +33,7 @@ export class PortfolioService {
     this.userAssetBuyRepository = new UserAssetBuyRepository();
     this.userAssetSellRepository = new UserAssetSellRepository();
     this.userAssetDividendRepository = new UserAssetDividendRepository();
+    this.assetRepository = new AssetRepository();
     this.portfolioMapper = new PortfolioMapper();
   }
 
@@ -87,8 +91,14 @@ export class PortfolioService {
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
-    
-    const assetBuy: UserAssetBuy = await this.userAssetBuyRepository.add(this.portfolioMapper.addAssetBuyDtoToEntity(request));
+
+    let companyName: string | null = null;
+    if (request.assetId) {
+      const asset: Asset | null = await this.assetRepository.getAssetFromUUID(request.assetId);
+      companyName = asset?.official_name ?? asset?.ticker_name ?? null;
+    }
+
+    const assetBuy: UserAssetBuy = await this.userAssetBuyRepository.add(this.portfolioMapper.addAssetBuyDtoToEntity(request, companyName));
     return this.portfolioMapper.assetBuyEntityToDto(assetBuy);
   }
 
@@ -97,8 +107,14 @@ export class PortfolioService {
     if (!portfolio) {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
-    
-    const assetSell: UserAssetSell = await this.userAssetSellRepository.add(this.portfolioMapper.addAssetSellDtoToEntity(request));
+
+    let companyName: string | null = null;
+    if (request.assetId) {
+      const asset: Asset | null = await this.assetRepository.getAssetFromUUID(request.assetId);
+      companyName = asset?.official_name ?? asset?.ticker_name ?? null;
+    }
+
+    const assetSell: UserAssetSell = await this.userAssetSellRepository.add(this.portfolioMapper.addAssetSellDtoToEntity(request, companyName));
     return this.portfolioMapper.assetSellEntityToDto(assetSell);
   }
 
@@ -108,7 +124,13 @@ export class PortfolioService {
       throw new Error("PORTFOLIO_NOT_FOUND");
     }
 
-    const assetDividend: UserAssetDividend = await this.userAssetDividendRepository.add(this.portfolioMapper.addAssetDividendDtoToEntity(request));
+    let companyName: string | null = null;
+    if (request.assetId) {
+      const asset: Asset | null = await this.assetRepository.getAssetFromUUID(request.assetId);
+      companyName = asset?.official_name ?? asset?.ticker_name ?? null;
+    }
+
+    const assetDividend: UserAssetDividend = await this.userAssetDividendRepository.add(this.portfolioMapper.addAssetDividendDtoToEntity(request, companyName));
     return this.portfolioMapper.assetDividendEntityToDto(assetDividend);
   }
 
