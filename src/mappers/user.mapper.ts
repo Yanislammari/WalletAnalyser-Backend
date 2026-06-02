@@ -5,6 +5,7 @@ import UserType from "../db_schema/users/user_type";
 
 export class UserMapper {
   public userEntityToUserResponseDto(entity: User): UserResponseDto {
+    console.log(entity.gift_date.getTime())
     return {
       id: entity.id,
       email: entity.email,
@@ -15,6 +16,7 @@ export class UserMapper {
       ban: entity.ban,
       subscribe : entity.subscribe,
       userType: entity.user_type,
+      timeMsGift: entity.gift_date.getTime(),
       activated: entity.activated,
       createdAt: entity.dataValues.created_at,
       updatedAt: entity.dataValues.updated_at,

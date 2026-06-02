@@ -20,3 +20,5 @@ export * from "./portfolio/portfolio";
 export * from "./portfolio/user_asset_buy";
 export * from "./portfolio/user_asset_sell";
 export * from "./portfolio/user_asset_dividend";
+export * from "./badge/badge";
+export * from "./badge/user_badge"
