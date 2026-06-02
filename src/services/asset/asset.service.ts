@@ -71,7 +71,7 @@ export class AssetService {
     if( exist1 ) {
       throw Error("ALREADY_EXIST")
     }
-    return this.assetRepository.addAssetFromAssetToDatabase(asset);
+    return this.assetRepository.addStrictlyNewAssetFromAssetToDatabase(asset);
   }
 
   public async updateAsset(uuid: string, asset: AssetDatabaseModel): Promise<AssetShort | null> {

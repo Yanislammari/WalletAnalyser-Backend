@@ -11,6 +11,7 @@ export const attributesAsset = {
   asset_type: "asset_type",
   ticker_name: "ticker_name",
   official_name: "official_name",
+  display_name : "display_name",
   sector_uuid: "sector_uuid",
   country_uuid: "country_uuid",
   createdAt: "created_at",
@@ -23,6 +24,7 @@ export class Asset extends Model {
   public asset_type!: AssetType;
   public ticker_name!: string;
   public official_name!: string;
+  public display_name!: string;
   public sector_uuid!: string;
   public country_uuid!: string;
   public country! : Country
@@ -55,6 +57,10 @@ Asset.init(
       allowNull: true,
     },
     official_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    display_name: {
       type: DataTypes.STRING,
       allowNull: true,
     },

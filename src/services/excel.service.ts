@@ -1,16 +1,17 @@
 import * as XLSX from "xlsx";
 import path from "path";
 import countries from "world-countries";
-import fs, { cpSync } from "fs";
+import fs from "fs";
+import YahooFinance from "yahoo-finance2";
+
 import { Asset, attributesEtfHoldingsAsset } from "../db_schema";
 import { MarketstackController } from "../controllers";
-import { AssetDatabaseModel, AssetPriceCompletModel, GeographicSector } from "../models";
+import { AssetDatabaseModel, GeographicSector } from "../models";
 import { DateService } from ".";
 import {
   AssetRepository,
   CountryAlliasRepository,
   CountryRepository,
-  SectorAlliasRepository,
   SectorRepository,
   CurrenciesRepository,
   EtfHoldingsRepository,
@@ -20,14 +21,14 @@ import { AssetType } from "../dtos";
 import { ETFHolding, MatchingNames } from "../dtos/asset/etf_concentration";
 import { TICKER_COMMON_SPECIAL_CHARS_REGEX, TICKER_COMMON_WORD, TICKER_DELETE_LAST_POINT, TICKER_DELETE_POINT, TICKER_REPLACE_MULTIPLE_SPACES } from "../constants/regex";
 import { RfrCountryService } from "./rfr/rfr_country.service";
-import { AssetPriceService } from "./asset/asset_price.service";
+
 
 export class ExcelService {
   private readonly constantPath: string = "../asset/excel/";
   private readonly jsonConstantPath: string = "../asset/json/";
 
   private defaultAssetTicker: string[] = []// "MSFT", "TTE", "UNH", "BABA", "JPM", "V", "PG", "TSM", "CHT", "RHHBF", "T", "HD", "XOM", "TM", "BA", "HSBC"]; // a terme viendra d'une API officielle
-  private defaultETFTicker: string[] = ["IVV","QQQM"]//["IVV", "QQQM","IEUR","IEMG"]
+  private defaultETFTicker: string[] = ["QQQM","IVV"]//["IVV", "QQQM","IEUR","IEMG"]
 
   private readonly currenciesPath: string[] = [path.join(__dirname, this.constantPath, "forex.xlsx")];
 
@@ -44,23 +45,21 @@ export class ExcelService {
   private marketstackController: MarketstackController = new MarketstackController();
   private assetRepository: AssetRepository = new AssetRepository();
   private dateService: DateService = new DateService();
-  private assetPriceService: AssetPriceService = new AssetPriceService();
   private sectorRepository: SectorRepository = new SectorRepository();
-  private sectorAlliasRepository: SectorAlliasRepository = new SectorAlliasRepository();
   private countryRepository: CountryRepository = new CountryRepository();
   private countryAlliasRepository: CountryAlliasRepository = new CountryAlliasRepository();
   private rfrCountryService : RfrCountryService = new RfrCountryService();
   private forexRepository : ForexRepository = new ForexRepository();
   private etfHoldingsRepository: EtfHoldingsRepository = new EtfHoldingsRepository();
 
+  private yf  = new YahooFinance()
   constructor() {}
 
   async addDataFromAdmin() {
     await this.addCountryToDatabaseFromCSV();
     await this.addCurrenciesToDatabase();
     await this.addRiskFreeRateToDatabase();
-    //await this.addAdminStocksToDatabase();
-    //await this.addPricesForAdminAsset();
+    await this.addAdminStocksToDatabase();
     await this.addConcentrationForAdminEtf();
   }
 
@@ -159,7 +158,7 @@ export class ExcelService {
     }
   }
 
-  async getGeographicSectorFromTickerFromSpecificSheet(ticker: string, sheets: string[], column = this.tickersColumnIndex): Promise<GeographicSector | null> {
+  getGeographicSectorFromTickerFromSpecificSheet(ticker: string, sheets: string[], column = this.tickersColumnIndex): GeographicSector | null {
     try {
       for (const path of this.stocksPath) {
         for (const sheetName of sheets) {
@@ -181,48 +180,23 @@ export class ExcelService {
     }
   }
 
-  async addPricesForAdminAsset() {
-    const allAssets = this.defaultAssetTicker.concat(this.defaultETFTicker);
-    for (const ticker of allAssets) {
-      try {
-        const isTickerUpToDate = await this.dateService.isAssetPriceUpToDate(ticker);
-        if (isTickerUpToDate) {
-          continue;
-        }
-        console.log("Fetching ticker price date", ticker);
-        const assetPrice = await this.marketstackController.fetchHistoricalData(ticker);
-        const assetInfoPrice = assetPrice[0] as AssetPriceCompletModel;
-        const currency = await this.currenciesRepository.getCurenciesFromDb(assetInfoPrice.price_currency);
 
-        let asset = await this.assetRepository.getAssetFromTicker(ticker);
-        if (asset == null) {
-          const findEnGeographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(ticker, this.stocksSheetNameEn);
-          let sector_uuid = null;
-          let country_uuid = null;
-          if (findEnGeographicSector?.sector_name) {
-            const sectorInDb = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name);
-            sector_uuid = sectorInDb?.uuid ?? null;
-          }
-          if (findEnGeographicSector?.country_name) {
-            const country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name);
-            country_uuid = country?.uuid ?? null;
-          }
-          if (this.defaultETFTicker.includes(ticker)) {
-            sector_uuid = null;
-            country_uuid = null;
-            assetInfoPrice.asset_type = AssetType.ETF;
-          }
-          const assetDatabase = new AssetDatabaseModel(assetInfoPrice.name, ticker, assetInfoPrice.asset_type, sector_uuid, country_uuid, currency?.uuid ?? null);
-          asset = await this.assetRepository.addAssetFromAssetToDatabase(assetDatabase);
-        }
-        if (asset.base_currency_uuid == null) {
-          await this.assetRepository.patchCurrencyUUIDAsset(asset.uuid, currency?.uuid ?? null);
-        }
 
-        this.assetPriceService.addPricesToDatabase(assetPrice, asset.uuid)
-      } catch (error) {
-        console.error(`Error while adding price for stock ${ticker}`, error);
-      }
+  async sleep(ms : number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async safeQuote(ticker: string) {
+    let quote;
+    let summary;
+    try {
+      quote = await this.yf.quote(ticker),
+      summary = await this.yf.quoteSummary(ticker, {
+        modules: ["assetProfile"]
+      })
+      return { quote , summary };
+    } catch (err : any) {
+      return {quote , summary};
     }
   }
 
@@ -232,36 +206,39 @@ export class ExcelService {
         return;
       }
       const tickers = await this.marketstackController.fetchTickers();
+      console.log("Adding stocks to the database");
+
       for (const index in tickers) {
-        if (["TOT"].includes(tickers[index].ticker)) {
-          // to fix some weird ticker that could appear
+        if (["TOT"].includes(tickers[index].ticker)) { // to fix some weird ticker that could appear
           continue;
         }
+        const ticker = tickers[index].ticker.replace(".","-")
+        const { quote, summary } = await this.safeQuote(ticker);
+        if(!quote || !quote.longName || !quote.symbol) {
+          continue
+        }
 
-        const assetDatabase = new AssetDatabaseModel(tickers[index].name, tickers[index].ticker, AssetType.STOCKS, null, null, null);
+        let sector, country;
+        if(!summary){
+          const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(tickers[index].ticker, this.stocksSheetNameEn);
+          sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
+          country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name?? "");
+        }
 
-        const findEnGeographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(tickers[index].ticker, this.stocksSheetNameEn);
-        if (findEnGeographicSector?.sector_name) {
-          let sectorInDb = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name);
-          if (!sectorInDb) {
-            const tickerInfo = await this.marketstackController.fetchTickerInfo(tickers[index].ticker);
-            console.log("fetch ticker info ", tickerInfo.sector);
-            if (tickerInfo.sector != "") {
-              sectorInDb = await this.sectorRepository.addSectorToDatabase(tickerInfo.sector!);
-              if (sectorInDb.sector_name.toLowerCase() !== findEnGeographicSector?.sector_name.toLowerCase()) {
-                await this.sectorAlliasRepository.addSectorAlliasToDatabase(sectorInDb.uuid, findEnGeographicSector?.sector_name);
-              }
-            }
+        else {
+          sector = summary.assetProfile?.sector ? await this.sectorRepository.getSectorByName(summary.assetProfile.sector) : null;
+          if(!sector && summary.assetProfile?.sector) {
+            sector = await this.sectorRepository.addSectorToDatabase(summary.assetProfile?.sector ?? "")
           }
-          assetDatabase.sector_uuid = sectorInDb?.uuid ?? null;
+          country = summary.assetProfile?.country ? await this.countryRepository.getCountryByName(summary.assetProfile.country) : null;
         }
-        if (findEnGeographicSector?.country_name) {
-          const country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name);
-          assetDatabase.country_uuid = country?.uuid ?? null;
-        }
-        if (assetDatabase.official_name?.includes("ETF")) {
-          assetDatabase.asset_type = AssetType.ETF;
-        }
+        const currency = await this.currenciesRepository.getCurenciesFromDb(quote.currency)
+        const asset_type = quote.quoteType != "EQUITY" ? AssetType.ETF : AssetType.STOCKS
+
+        await this.sleep(1000)
+        const assetDatabase = new AssetDatabaseModel(quote.displayName ?? quote.longName, quote.longName, quote.symbol, asset_type, 
+          sector?.uuid ?? null, country?.uuid ?? null, currency?.uuid ?? null
+        );
         await this.assetRepository.addAssetFromAssetToDatabase(assetDatabase);
       }
     } catch (error) {
@@ -300,8 +277,8 @@ export class ExcelService {
       {name_json : "PPL Corp.", name_db: "PPL Corp"},
     ]
     const fixedTitle: MatchingNames[] = [
-      {name_json : "Alphabet, Inc., Class A", name_db : "Alphabet Inc - Class A"},
-      {name_json : "Alphabet, Inc., Class C", name_db: "Alphabet Inc - Class C"},
+      {name_json : "Alphabet, Inc., Class A", name_db : "GOOG"},
+      {name_json : "Alphabet, Inc., Class C", name_db: "GOOGL"},
     ]
     let asset;
     const findName = fixedName.find((value) => value.name_json == etfHoldingName)
@@ -311,7 +288,7 @@ export class ExcelService {
     }
     const findTitle = fixedTitle.find((value) => value.name_json == title)
     if(findTitle) {
-      asset = await this.assetRepository.getAssetFromOfficialName(findTitle?.name_db);
+      asset = await this.assetRepository.getAssetFromTicker(findTitle?.name_db);
       return asset
     }
     asset = await this.assetRepository.getClosestAssetFromOfficialName(etfHoldingName);
@@ -356,7 +333,9 @@ export class ExcelService {
       let etf = await this.assetRepository.getAssetFromTicker(ticker);
       if (etf == null) {
         const name = holdings.basics.fund_name;
-        etf = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(name, ticker, AssetType.ETF, null, null, null));
+        const quote = await this.yf.quote(ticker)
+        const currency = await this.currenciesRepository.getByName(quote.currency)
+        etf = await this.assetRepository.addStrictlyNewAssetFromAssetToDatabase(new AssetDatabaseModel(name, name, ticker, AssetType.ETF, null, null, currency?.uuid ?? null));
       }
       const existingHoldings = await this.etfHoldingsRepository.getEtfHoldingsFromEtf(etf.uuid);
       if (existingHoldings.length > 0) {
@@ -374,29 +353,50 @@ export class ExcelService {
     for (const holding of holdingsList) {
       let asset = await this.matchETFHoldingsAndDBasset(holding.investment_security.name, holding.investment_security.title);
       if (asset == null) {
-        asset = await this.assetRepository.addAssetFromAssetToDatabase(new AssetDatabaseModel(holding.investment_security.name, null, null, null, null, null));
+        const options = await this.yf.search(holding.investment_security.name)
+        const filtered = options.quotes.filter(q => {
+          const name = q.shortname as string | undefined;
+          if (!name) return false;
+
+          const firstName = name.split(" ")[0].toLowerCase();
+
+          return holding.investment_security.name
+            .toLowerCase()
+            .includes(firstName);
+        });
+        if( filtered.length == 0) { // nothing found
+          asset = await this.assetRepository.addStrictlyNewAssetFromAssetToDatabase(new AssetDatabaseModel(null, holding.investment_security.name, null, AssetType.STOCKS, null, null, null))
+        }
+        else {
+          const { quote, summary } = await this.safeQuote(filtered[0].symbol as string);
+          await this.sleep(1000)
+          if(!quote || !quote.longName || !quote.symbol) {
+            asset = await this.assetRepository.addStrictlyNewAssetFromAssetToDatabase(new AssetDatabaseModel(null, holding.investment_security.name, null, AssetType.STOCKS, null, null, null))
+          }
+          else {
+            let sector;
+            if(!summary){
+              const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(filtered[0].symbol as string, this.stocksSheetNameEn);
+              sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
+            }
+            else {
+              sector = summary.assetProfile?.sector ? await this.sectorRepository.getSectorByName(summary.assetProfile.sector) : null;
+              if(!sector && summary.assetProfile?.sector) {
+                sector = await this.sectorRepository.addSectorToDatabase(summary.assetProfile?.sector ?? "")
+              }
+            }
+            const currency = await this.currenciesRepository.getCurenciesFromDb(quote.currency)
+            const asset_type = quote.quoteType != "EQUITY" ? AssetType.ETF : AssetType.STOCKS
+            const country = await this.countryRepository.getCountryByName(holding.investment_security.invested_country);
+
+            const assetDatabase = new AssetDatabaseModel(quote.displayName ?? quote.longName, quote.longName, quote.symbol, asset_type, 
+              sector?.uuid ?? null, country?.uuid ?? null, currency?.uuid ?? null
+            );
+            asset = await this.assetRepository.addStrictlyNewAssetFromAssetToDatabase(assetDatabase);
+          }
+        }
       }
-      const assetDatabase = new AssetDatabaseModel(
-        asset ? asset.official_name : holding.investment_security.name,
-        asset ? asset.ticker_name : null,
-        Object.values(AssetType).includes(asset?.asset_type as AssetType) ? (asset.asset_type as AssetType) : null,
-        asset ? asset.sector_uuid : null,
-        asset ? asset.country_uuid : null,
-        asset ? asset.base_currency_uuid : null
-      );
-      const geographicSector = await this.getGeographicSectorFromTickerFromSpecificSheet(holding.investment_security.name, this.stocksSheetNameEn, this.assetNameColumnIndex);
-      if (geographicSector?.sector_name && !assetDatabase.sector_uuid) {
-        let sectorInDb = await this.sectorRepository.getSectorByName(geographicSector.sector_name);
-        assetDatabase.sector_uuid = sectorInDb?.uuid ?? null;
-      }
-      if (!assetDatabase.country_uuid) {
-        const country = await this.countryRepository.getCountryByName(holding.investment_security.invested_country);
-        assetDatabase.country_uuid = country?.uuid ?? null;
-      }
-      asset = await this.assetRepository.patchAssetInfo(asset.uuid, assetDatabase);
-      if(!asset) {
-        throw new Error("NO_ASSET")
-      }
+
       const existEtfHolding = await this.etfHoldingsRepository.getEtfHoldings(asset.uuid, etf.uuid)
       if( existEtfHolding ) {
         await this.etfHoldingsRepository.update(existEtfHolding.uuid, {
