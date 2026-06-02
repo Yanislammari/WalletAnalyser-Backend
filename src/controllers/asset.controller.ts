@@ -121,6 +121,7 @@ class AssetController {
   public async createAsset(req: Request, res: Response): Promise<Response> {
     try {
       const asset = new AssetDatabaseModel(
+        req.body.display_name ?? null,
         req.body.official_name ?? null,
         req.body.ticker_name ?? null,
         req.body.type,
@@ -163,6 +164,7 @@ class AssetController {
     try {
       const uuid = req.params.uuid as string;
       const asset = new AssetDatabaseModel(
+        req.body.display_name ?? null,
         req.body.official_name ?? null,
         req.body.ticker_name ?? null,
         req.body.type,
