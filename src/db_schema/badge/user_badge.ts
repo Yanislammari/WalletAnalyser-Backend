@@ -4,13 +4,20 @@ import { User } from "../users/users";
 import { Badge } from "./badge";
 
 export enum LevelBadge {
-  "Beginner" = "Beginner",
-  "Intermediate" = "Intermediate",
-  "Advanced" = "Advanced",
-  "Expert" = "Expert",
+  BEGINNER = "BEGINNER",
+  INTERMEDIATE = "INTERMEDIATE",
+  ADVANCED = "ADVANCED",
+  EXPERT = "EXPERT",
 }
 
-export const attributesUserBadgeAllias = {
+export const LEVEL_ORDER: Record<LevelBadge, number> = {
+  [LevelBadge.BEGINNER]:     1,
+  [LevelBadge.INTERMEDIATE]: 2,
+  [LevelBadge.ADVANCED]:     3,
+  [LevelBadge.EXPERT]:       4,
+};
+
+export const attributesUserBadge = {
   uuid: "uuid",
   user_uuid: "user_uuid",
   badge_uuid: "badge_uuid",
@@ -24,6 +31,7 @@ export class UserBadge extends Model {
   public user_uuid!: string;
   public badge_uuid!: string;
   public level_badge!: LevelBadge;
+  public badge!: Badge;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -54,7 +62,7 @@ UserBadge.init(
     level_badge: {
       type: DataTypes.ENUM(...Object.values(LevelBadge)),
       allowNull: false,
-      defaultValue: LevelBadge.Beginner,
+      defaultValue: LevelBadge.BEGINNER,
     },
   },
   {
@@ -64,21 +72,22 @@ UserBadge.init(
 
 UserBadge.belongsTo(User, { 
   as: "user", 
-  foreignKey: attributesUserBadgeAllias.user_uuid,
+  foreignKey: attributesUserBadge.user_uuid,
   onDelete: "CASCADE"
 });
 
 UserBadge.belongsTo(Badge, { 
   as: "badge", 
-  foreignKey: attributesUserBadgeAllias.badge_uuid
+  foreignKey: attributesUserBadge.badge_uuid,
+  onDelete: "CASCADE"
 });
 
 User.hasMany(UserBadge, {
   as: "userBadges",
-  foreignKey: attributesUserBadgeAllias.user_uuid
+  foreignKey: attributesUserBadge.user_uuid
 })
 
 Badge.hasMany(UserBadge, {
   as: "userBadges",
-  foreignKey: attributesUserBadgeAllias.badge_uuid
+  foreignKey: attributesUserBadge.badge_uuid
 });

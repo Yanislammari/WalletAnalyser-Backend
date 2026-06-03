@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 
-export const attributesBadgeAllias = {
+export const attributesBadge = {
   uuid: "uuid",
   badge_image_path: "badge_image_path",
   badge_title: "badge_title",

@@ -1,5 +1,6 @@
 import { AzureAppInsightsService } from "./services/azure.app.insights.service";
 import express, { Router, Request, Response } from "express";
+import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
@@ -11,6 +12,10 @@ import AdminRoutes from "./routes/admin/admin.route";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
+import { BadgeRepository } from "./repositories/badge/badge.repository";
+import { BadgeService } from "./services/badge.service";
+import BadgeRoutes from "./routes/badge.routes";
+import { createVerifyTokenMiddleware } from "./middleware/token";
 
 AzureAppInsightsService.init();
 
@@ -22,6 +27,8 @@ const app = express();
 async function setUpApi() {
   const authService = new AuthService();
   await startOfDatabase();
+  const badgeService = new BadgeService();
+  await badgeService.createAllBadges()
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
   authService.registerAdmin({
@@ -43,6 +50,9 @@ app.use(
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+const imagesPath = path.join(__dirname, "asset", "images");
+app.use("/images",createVerifyTokenMiddleware(), express.static(imagesPath));
 
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -68,6 +78,7 @@ app.use("/sector",SectorsRoutes());
 app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
+app.use("/badges", BadgeRoutes());
 app.use("/admin", AdminRoutes());
 
 export default app;
