@@ -16,6 +16,7 @@ import { BadgeRepository } from "./repositories/badge/badge.repository";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
 import { createVerifyTokenMiddleware } from "./middleware/token";
+import ClusterRoutes from "./routes/asset_cluster.routes";
 
 AzureAppInsightsService.init();
 
@@ -79,6 +80,7 @@ app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
 app.use("/badges", BadgeRoutes());
+app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
 
 export default app;

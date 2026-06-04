@@ -5,7 +5,6 @@ import UserType from "../db_schema/users/user_type";
 
 export class UserMapper {
   public userEntityToUserResponseDto(entity: User): UserResponseDto {
-    console.log(entity.gift_date.getTime())
     return {
       id: entity.id,
       email: entity.email,

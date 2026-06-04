@@ -8,17 +8,26 @@ class AssetClusterController {
     this.assetClusterService = new AssetClusterService();
   }
 
-  public async getAll(req: Request, res: Response): Promise<Response> {
-    return res
-    /**try {
-      const user_id = (req as any).user.id
-      const response = await this.badgeService.getAllBadges(user_id);
-      return res.status(200).json(response);
+  public async getSectorSummary(req: Request, res: Response): Promise<Response> {
+    try {
+      const response = await this.assetClusterService.getSectorSummary();
+      return res.status(200).json({sectorsData : response});
     }
     catch (error) {
       console.log(error)
       return res.status(500).json({ message: "Internal server error" });
-    }**/
+    }
+  }
+
+  public async getClusterSummary(req: Request, res : Response): Promise<Response> {
+    try {
+      const response = await this.assetClusterService.getClusterSummary();
+      return res.status(200).json({sectorsData : response});
+    }
+    catch (error) {
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 }
 
