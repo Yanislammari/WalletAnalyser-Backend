@@ -16,3 +16,4 @@ export const AZURE_BLOB_STORAGE_CONTAINER_NAME_TEMPLATES: string = requireEnv("A
 export const AZURE_BLOB_STORAGE_CONTAINER_NAME_UPLOADS: string = requireEnv("AZURE_BLOB_STORAGE_CONTAINER_NAME_UPLOADS");
 export const FRONTEND_URL_PROD: string = requireEnv("FRONTEND_URL_PROD");
 export const APPINSIGHTS_CONNECTION_STRING: string = requireEnv("APPINSIGHTS_CONNECTION_STRING");
+export const BASE_URL: string = requireEnv("BASE_URL");

@@ -5,6 +5,7 @@ import { attributesUserBadge, LEVEL_ORDER, LevelBadge, UserBadge } from '../db_s
 import { attributesBadge } from '../db_schema/badge/badge';
 import { attributesUser } from "../db_schema";
 import { BADGE_RULES, BadgeCreation, UserStats } from "../models/UserStats";
+import { BASE_URL } from "../constants/env";
 
 export class BadgeService {
   private readonly badgeRepository : BadgeRepository = new BadgeRepository()
@@ -68,7 +69,7 @@ export class BadgeService {
   }
 
   async createAllBadges() {
-    const imageUrl = `${process.env.BASE_URL}images/`;
+    const imageUrl = `${BASE_URL}images/`;
     const badgesToAdd: BadgeCreation[] = [
       {badge_image_path : imageUrl +"account.svg", badge_label : "Create an account", badge_title : "Account creation !" , check : (s : UserStats) =>{
         if(s.hasAccount) return LevelBadge.BEGINNER

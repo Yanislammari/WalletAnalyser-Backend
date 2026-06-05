@@ -102,7 +102,7 @@ export class AssetClusterService {
     return result;
   }
 
-  private async getRankInSector(asset: Asset): Promise<{asset : Asset, rank : string, perf : number}> {
+  private async getRankInSector(asset: Asset): Promise<{asset : Asset, rank : string, perf : number, rank_position : number}> {
     const sectorAssets = await this.assetRepository.get({
       where: { [attributesAsset.sector_uuid]: asset.sector_uuid },
       attributes : [attributesAsset.uuid]
@@ -123,6 +123,7 @@ export class AssetClusterService {
     return {
       asset: asset,
       rank: `${position}/${sectorAssets.length}`,
+      rank_position: position,
       perf: assetsPerfs[position - 1].perf * 100
     };
   }
@@ -160,7 +161,7 @@ export class AssetClusterService {
 
     assetsPerfs.sort((a,b) => b.perf - a.perf)
 
-    return assetsPerfs
+    return assetsPerfs.map((item, index) => ({ ...item, rank_position: index + 1 }));
   }
 
   async getSectorDetails(sector_uuid : string){
