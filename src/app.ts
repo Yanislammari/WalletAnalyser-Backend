@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
+import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
@@ -29,7 +30,10 @@ async function setUpApi() {
     password: "MoiMeme94@",
     firstName: "Admin",
     lastName: "Admin",
-  })
+  });
+
+  const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
+  await assetBaseCurrencySyncService.syncBaseCurrencies();
 }
 
 setUpApi();
