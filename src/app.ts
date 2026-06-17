@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
 import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
+import { StartupSyncService } from "./services/startup/startup.sync.service";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
@@ -34,6 +35,12 @@ async function setUpApi() {
 
   const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
   await assetBaseCurrencySyncService.syncBaseCurrencies();
+
+  // Fire-and-forget background sync (forex rates + dividends for 5 years)
+  const startupSyncService = new StartupSyncService();
+  startupSyncService.syncAll().catch((err) => {
+    console.error("[StartupSync] Unhandled error:", err instanceof Error ? err.message : String(err));
+  });
 }
 
 setUpApi();

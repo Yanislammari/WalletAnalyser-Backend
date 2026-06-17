@@ -20,6 +20,45 @@ class AssetController {
     }
   }
 
+  /** GET /asset/preview?ticker=AAPL — fetch Yahoo Finance info without saving */
+  public async previewCustomAsset(req: Request, res: Response): Promise<Response> {
+    try {
+      const ticker: string = req.query.ticker as string;
+      if (!ticker) {
+        return res.status(400).json({ message: "ticker query parameter is required" });
+      }
+
+      const info = await this.assetService.getAssetQuoteInfo(ticker.toUpperCase());
+      if (!info) {
+        return res.status(404).json({ message: "TICKER_NOT_FOUND" });
+      }
+
+      return res.status(200).json(info);
+    }
+    catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /** POST /asset/custom — save a custom asset */
+  public async createCustomAsset(req: Request, res: Response): Promise<Response> {
+    try {
+      const { ticker } = req.body as { ticker: string };
+      if (!ticker) {
+        return res.status(400).json({ message: "ticker is required" });
+      }
+
+      const asset: AssetResponseDto = await this.assetService.createCustomAsset(ticker.toUpperCase());
+      return res.status(201).json(asset);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "TICKER_NOT_FOUND") {
+        return res.status(404).json({ message: "TICKER_NOT_FOUND" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async getPrice(req: Request, res: Response): Promise<Response> {
     try {
       const assetId: string = req.params.assetId as string;

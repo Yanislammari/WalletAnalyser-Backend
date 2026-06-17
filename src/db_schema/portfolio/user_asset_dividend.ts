@@ -12,6 +12,7 @@ export const attributesUserAssetDividend = {
   currency_uuid: "currency_uuid",
   cashflow_date: "cashflow_date",
   cashflow_amount: "cashflow_amount",
+  source_buy_uuid: "source_buy_uuid",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -24,6 +25,7 @@ export class UserAssetDividend extends Model {
   public currency_uuid!: string;
   public cashflow_date!: Date;
   public cashflow_amount!: number;
+  public source_buy_uuid!: string | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -71,6 +73,10 @@ UserAssetDividend.init(
     cashflow_amount: {
       type: DataTypes.FLOAT,
       allowNull: false,
+    },
+    source_buy_uuid: {
+      type: DataTypes.UUID,
+      allowNull: true,
     },
   },
   {

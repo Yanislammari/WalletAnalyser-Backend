@@ -46,6 +46,14 @@ AssetDividend.init(
   },
   {
     sequelize,
+    tableName: "AssetDividends",
+    indexes: [
+      {
+        unique: true,
+        fields: ["asset_uuid", "ex_date"],
+        name: "asset_dividends_asset_uuid_ex_date_unique",
+      },
+    ],
   }
 );
 

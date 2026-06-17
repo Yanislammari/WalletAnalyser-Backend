@@ -164,6 +164,103 @@ export class YahooFinanceService {
     return "USD";
   }
 
+  public async fetchHistoricalData(ticker: string, from: Date, to: Date): Promise<Array<{ date: Date; price: number }>> {
+    // Yahoo Finance chart() API (replacement for removed historical()) returns lowercase field names
+    type RawRow = { date?: Date; adjclose?: number; adjClose?: number; close?: number };
+
+    const parseRows = (raw: unknown[]): Array<{ date: Date; price: number }> =>
+      (raw as RawRow[])
+        .filter((row) => row.date != null && (row.adjclose != null || row.adjClose != null || row.close != null))
+        .map((row) => ({ date: row.date!, price: row.adjclose ?? row.adjClose ?? row.close ?? 0 }));
+
+    try {
+      const rows = await this.yahooFinance.historical(ticker, {
+        period1: from,
+        period2: to,
+        interval: "1d",
+      });
+      return parseRows(rows as unknown[]);
+    }
+    catch (err: unknown) {
+      const validationErr = err as { result?: unknown };
+      if (validationErr.result != null) {
+        const raw: unknown[] = Array.isArray(validationErr.result)
+          ? (validationErr.result as unknown[])
+          : [validationErr.result];
+        return parseRows(raw);
+      }
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // Suppress noisy expected errors: delisted/not-found tickers and period overlap
+      if (!errMsg.includes("No data found") && !errMsg.includes("period1 and period2")) {
+        console.error(`YahooFinanceService.fetchHistoricalData error for ${ticker}:`, errMsg);
+      }
+      return [];
+    }
+  }
+
+  public async fetchHistoricalDividends(ticker: string, from: Date, to: Date): Promise<Array<{ date: Date; dividends: number }>> {
+    const parseRows = (raw: unknown[]): Array<{ date: Date; dividends: number }> => {
+      return (raw as Array<{ date?: Date; dividends?: number }>)
+        .filter((row) => row.date != null && row.dividends != null && row.dividends > 0) as Array<{ date: Date; dividends: number }>;
+    };
+
+    try {
+      const rows = await this.yahooFinance.historical(ticker, {
+        period1: from,
+        period2: to,
+        events: "dividends",
+      });
+      return parseRows(rows as unknown[]);
+    }
+    catch (err: unknown) {
+      const validationErr = err as { result?: unknown };
+      if (validationErr.result != null) {
+        const raw: unknown[] = Array.isArray(validationErr.result)
+          ? (validationErr.result as unknown[])
+          : [validationErr.result];
+        return parseRows(raw);
+      }
+      const errMsg = err instanceof Error ? err.message : String(err);
+      // Suppress noisy expected errors: delisted/not-found tickers and period overlap
+      if (!errMsg.includes("No data found") && !errMsg.includes("period1 and period2")) {
+        console.error(`YahooFinanceService.fetchHistoricalDividends error for ${ticker}:`, errMsg);
+      }
+      return [];
+    }
+  }
+
+  public async fetchAssetQuote(ticker: string): Promise<{
+    ticker: string;
+    officialName: string | null;
+    currency: string | null;
+    price: number | null;
+    assetType: string | null;
+  } | null> {
+    try {
+      const result = await this.yahooFinance.quoteSummary(ticker.toUpperCase(), {
+        modules: ["price"],
+      }) as any;
+
+      const price = result?.price;
+      if (!price) return null;
+
+      return {
+        ticker: ticker.toUpperCase(),
+        officialName: price.longName ?? price.shortName ?? null,
+        currency: price.currency ?? null,
+        price: price.regularMarketPrice ?? null,
+        assetType: price.quoteType ?? null,
+      };
+    }
+    catch {
+      return null;
+    }
+  }
+
+  public sleepMs(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   private chunkArray<T>(arr: T[], size: number): T[][] {
     const chunks: T[][] = [];
     for (let i = 0; i < arr.length; i += size) {

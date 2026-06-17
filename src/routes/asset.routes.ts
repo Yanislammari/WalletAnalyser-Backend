@@ -6,6 +6,8 @@ const AssetRoutes = (): Router => {
   const assetController = new AssetController();
 
   router.get("/", (req, res) => assetController.getAll(req, res));
+  router.get("/preview", (req, res) => assetController.previewCustomAsset(req, res));
+  router.post("/custom", (req, res) => assetController.createCustomAsset(req, res));
   router.get("/:assetId/price", (req, res) => assetController.getPrice(req, res));
 
   return router;

@@ -1,3 +1,4 @@
+import { fn, col, Op } from "sequelize";
 import { attributesCurrency, attributesForexRate, Currency, ForexRate } from "../db_schema";
 import { attributesForex, Forex } from "../db_schema";
 import { BaseRepository } from "./base.repository";
@@ -123,5 +124,54 @@ export class CurrenciesRepository extends BaseRepository<Currency> {
       console.error(`Error adding forex exchange price for ${forex.base_currency}/${forex.quote_currency} to the database:`, error);
       throw error;
     }
+  }
+
+  async getOldestForexRateDatesByForexIds(forexIds: string[]): Promise<Map<string, Date>> {
+    try {
+      const rows = await ForexRate.findAll({
+        where: { forex_uuid: { [Op.in]: forexIds } },
+        attributes: ["forex_uuid", [fn("MIN", col("forex_rate_date")), "oldest_date"]],
+        group: ["forex_uuid"],
+        raw: true,
+      }) as unknown as Array<{ forex_uuid: string; oldest_date: string }>;
+
+      const result = new Map<string, Date>();
+      for (const row of rows) {
+        result.set(row.forex_uuid, new Date(row.oldest_date));
+      }
+      return result;
+    } catch (error) {
+      console.error("Error fetching oldest forex rate dates:", error);
+      return new Map();
+    }
+  }
+
+  async bulkCreateForexRates(
+    records: Array<{ forex_uuid: string; forex_rate: number; forex_rate_date: Date }>
+  ): Promise<void> {
+    if (records.length === 0) return;
+    await ForexRate.bulkCreate(records as any, { ignoreDuplicates: true });
+  }
+
+  async getClosestForexRateBeforeOrAt(baseCurrencyId: string, quoteCurrencyId: string, date: Date): Promise<ForexRate | null> {
+    try {
+      const forex = await this.getForexFromDb(baseCurrencyId, quoteCurrencyId);
+      if (!forex) return null;
+
+      return ForexRate.findOne({
+        where: {
+          [attributesForexRate.forex_uuid]: forex.uuid,
+          [attributesForexRate.forex_rate_date]: { [Op.lte]: date },
+        },
+        order: [[attributesForexRate.forex_rate_date, "DESC"]],
+      });
+    } catch (error) {
+      console.error("Error fetching closest forex rate:", error);
+      return null;
+    }
+  }
+
+  async getAllCurrencies(): Promise<Currency[]> {
+    return this.model.findAll();
   }
 }

@@ -52,6 +52,11 @@ export class AssetPriceRepository {
     }
   }
 
+  async bulkCreatePrices(records: Array<{ asset_uuid: string; asset_price_date: Date; asset_price: number }>): Promise<void> {
+    if (records.length === 0) return;
+    await AssetPrice.bulkCreate(records as any, { ignoreDuplicates: true });
+  }
+
   async addAssetPrice(assetUuid: string, date: Date, price: number): Promise<AssetPrice> {
     try {
       const exisitingAssetPrice = await this.getAssetPriceAtDate(assetUuid, date);
