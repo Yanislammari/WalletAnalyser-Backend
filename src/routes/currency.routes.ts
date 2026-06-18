@@ -6,6 +6,7 @@ const CurrencyRoutes = (): Router => {
   const currencyController = new CurrencyController();
 
   router.get("/", (req, res) => currencyController.getAll(req, res));
+  router.get("/convert", (req, res) => currencyController.convert(req, res));
   router.get("/:name", (req, res) => currencyController.getByName(req, res));
 
   return router;

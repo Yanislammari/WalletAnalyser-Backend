@@ -4,10 +4,14 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
+import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
+import { StartupSyncService } from "./services/startup/startup.sync.service";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
+import ImportRoutes from "./routes/import.routes";
+import AssetRoutes from "./routes/asset.routes";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
@@ -29,7 +33,16 @@ async function setUpApi() {
     password: "MoiMeme94@",
     firstName: "Admin",
     lastName: "Admin",
-  })
+  });
+
+  const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
+  await assetBaseCurrencySyncService.syncBaseCurrencies();
+
+  // Fire-and-forget background sync (forex rates + dividends for 5 years)
+  const startupSyncService = new StartupSyncService();
+  startupSyncService.syncAll().catch((err) => {
+    console.error("[StartupSync] Unhandled error:", err instanceof Error ? err.message : String(err));
+  });
 }
 
 setUpApi();
@@ -69,6 +82,7 @@ app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
 app.use("/admin", AdminRoutes());
+app.use("/import", ImportRoutes());
+app.use("/asset", AssetRoutes());
 
 export default app;
-

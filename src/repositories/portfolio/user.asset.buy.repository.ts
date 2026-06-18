@@ -34,8 +34,37 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     });
   }
 
+  public async getAllByPortfolioId(portfolioId: string): Promise<UserAssetBuy[]> {
+    return this.model.findAll({ where: { portfolio_uuid: portfolioId } });
+  }
+
   public async countByPortfolioId(portfolioId: string): Promise<number> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
+  }
+
+  public async getBuysByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<UserAssetBuy[]> {
+    return this.model.findAll({
+      where: {
+        portfolio_uuid: portfolioId,
+        company_name: companyName,
+        buy_date: { [Op.lte]: upToDate },
+        asset_buy_share: { [Op.ne]: null },
+        asset_buy_price_per_share: { [Op.ne]: null },
+      },
+      order: [["buy_date", "ASC"]],
+    });
+  }
+
+  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<number> {
+    const total = await this.model.sum("asset_buy_share", {
+      where: {
+        portfolio_uuid: portfolioId,
+        company_name: companyName,
+        buy_date: { [Op.lte]: upToDate },
+        asset_buy_share: { [Op.ne]: null },
+      },
+    });
+    return total || 0;
   }
 
   public async getDistinctCompanies(portfolioId: string): Promise<string[]> {

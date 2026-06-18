@@ -84,6 +84,26 @@ export class AssetRepository extends BaseRepository<Asset> {
     }
   }
 
+  async addCustomAsset(data: {
+    ticker_name: string | null;
+    official_name: string | null;
+    base_currency_uuid: string | null;
+    asset_type: string | null;
+  }): Promise<Asset> {
+    // Return existing regular or custom asset if ticker already exists
+    const existing = data.ticker_name ? await this.getAssetFromTicker(data.ticker_name) : null;
+    if (existing) return existing;
+
+    const newAsset = await Asset.create({
+      [attributesAsset.base_currency_uuid]: data.base_currency_uuid,
+      [attributesAsset.asset_type]: data.asset_type,
+      [attributesAsset.official_name]: data.official_name,
+      [attributesAsset.ticker_name]: data.ticker_name,
+      [attributesAsset.is_custom]: true,
+    });
+    return newAsset;
+  }
+
   async addStrictlyNewAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
     try {
       if (asset.ticker_name === null && asset.official_name === null) {
