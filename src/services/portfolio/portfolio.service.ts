@@ -21,7 +21,7 @@ import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
 import { Asset, AssetDividend } from "../../db_schema";
 import { YahooFinanceService } from "../yahoo.finance.service";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
+import { CurrenciesRepository } from "../../repositories";
 
 export class PortfolioService {
   private readonly portfolioRepository: PortfolioRepository;

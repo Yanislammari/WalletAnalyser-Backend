@@ -5,8 +5,8 @@ import { Currency } from "../../db_schema";
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
 import { MetricResponseDto, TopHolding, MonthlyDataPoint } from "../../dtos/portfolio/responses/metric.response.dto";
+import { CurrenciesRepository } from "../../repositories";
 
 const RISK_FREE_RATE = 0.04; // 4% annual (approximation of 10-year bond)
 

@@ -261,7 +261,8 @@ export class ExcelService {
           const countryUuid = await this.countryRepository.getCountryByName(path.parse(filePath).name.split("_")[1]); // we suppose that the file name is like rfr_countryname.xlsx
           const dates = this.readExcelColumn(worksheet, 0, range).map(date => this.dateService.transformExcelDateToDbDate(date));
           if (!countryUuid?.uuid) {
-            throw Error("Cant get a country for rfr");
+            console.warn(`[RFR] No country found for file: ${file} — skipping`);
+            return;
           }
           this.rfrCountryService.createRfrCountry(countryUuid.uuid, dates, percent_rates)
         });

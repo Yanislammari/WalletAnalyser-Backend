@@ -1,7 +1,7 @@
 import { Asset } from "../db_schema/asset/asset";
 import { Currency } from "../db_schema/currencies/currency";
+import { CurrenciesRepository } from "../repositories";
 import { AssetRepository } from "../repositories/asset/asset.repository";
-import { CurrenciesRepository } from "../repositories/currencies.repository";
 import { YahooFinanceService } from "./yahoo.finance.service";
 
 export class AssetBaseCurrencySyncService {
