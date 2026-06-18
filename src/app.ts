@@ -16,6 +16,7 @@ import AssetRoutes from "./routes/asset.routes";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
+import { BadgeRepository } from "./repositories/badge/badge.repository";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
 import { createVerifyTokenMiddleware } from "./middleware/token";
