@@ -125,4 +125,74 @@ export class CurrenciesRepository extends BaseRepository<Currency> {
       throw error;
     }
   }
+
+  async getAllCurrencies(): Promise<Currency[]> {
+    try {
+      return await Currency.findAll();
+    } catch (error) {
+      console.error("Error fetching all currencies from the database:", error);
+      return [];
+    }
+  }
+
+  async getOldestForexRateDatesByForexIds(forexUuids: string[]): Promise<Map<string, Date>> {
+    try {
+      if (forexUuids.length === 0) return new Map();
+
+      const rows = await ForexRate.findAll({
+        attributes: [
+          [attributesForexRate.forex_uuid, "forex_uuid"],
+          [fn("MIN", col(attributesForexRate.forex_rate_date)), "oldest_date"],
+        ],
+        where: {
+          [attributesForexRate.forex_uuid]: { [Op.in]: forexUuids },
+        },
+        group: [attributesForexRate.forex_uuid],
+        raw: true,
+      }) as unknown as Array<{ forex_uuid: string; oldest_date: string }>;
+
+      const result = new Map<string, Date>();
+      for (const row of rows) {
+        result.set(row.forex_uuid, new Date(row.oldest_date));
+      }
+      return result;
+    } catch (error) {
+      console.error("Error fetching oldest forex rate dates:", error);
+      return new Map();
+    }
+  }
+
+  async bulkCreateForexRates(
+    records: Array<{ forex_uuid: string; forex_rate: number; forex_rate_date: Date }>
+  ): Promise<void> {
+    if (records.length === 0) return;
+    await ForexRate.bulkCreate(records as any, { ignoreDuplicates: true });
+  }
+
+  async getClosestForexRateBeforeOrAt(
+    baseCurrencyUuid: string,
+    quoteCurrencyUuid: string,
+    date: Date
+  ): Promise<ForexRate | null> {
+    try {
+      const forex = await Forex.findOne({
+        where: {
+          [attributesForex.base_currency]: baseCurrencyUuid,
+          [attributesForex.quote_currency]: quoteCurrencyUuid,
+        },
+      });
+      if (!forex) return null;
+
+      return await ForexRate.findOne({
+        where: {
+          [attributesForexRate.forex_uuid]: forex.uuid,
+          [attributesForexRate.forex_rate_date]: { [Op.lte]: date },
+        },
+        order: [[attributesForexRate.forex_rate_date, "DESC"]],
+      });
+    } catch (error) {
+      console.error("Error fetching closest forex rate before or at date:", error);
+      return null;
+    }
+  }
 }

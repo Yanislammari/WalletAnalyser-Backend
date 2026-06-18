@@ -6,8 +6,8 @@ import { PortfolioRepository } from "../../repositories/portfolio/portfolio.repo
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
 import { PortfolioTotalResponseDto } from "../../dtos/portfolio/responses/portfolio.total.response.dto";
+import { CurrenciesRepository } from "../../repositories";
 
 export class PortfolioTotalService {
   private readonly portfolioRepository: PortfolioRepository;

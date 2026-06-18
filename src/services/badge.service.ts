@@ -18,7 +18,7 @@ export class BadgeService {
     if(!user) {
       throw Error("NO_USER")
     }
-    const timeLeft = user.gift_date.getTime() - Date.now()
+    const timeLeft = user.gift_date ? user.gift_date.getTime() - Date.now() : -1
     let newBadges: UserBadge[] = [];
     let nextGiftDate: number | null = null;
 
