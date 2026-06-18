@@ -99,7 +99,6 @@ export class AssetRepository extends BaseRepository<Asset> {
       [attributesAsset.asset_type]: data.asset_type,
       [attributesAsset.official_name]: data.official_name,
       [attributesAsset.ticker_name]: data.ticker_name,
-      [attributesAsset.is_custom]: true,
     });
     return newAsset;
   }
