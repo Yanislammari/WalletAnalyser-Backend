@@ -21,6 +21,8 @@ import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
 import { createVerifyTokenMiddleware } from "./middleware/token";
 import ClusterRoutes from "./routes/asset_cluster.routes";
+import { PYTHON_BASE_URL } from "./constants/env";
+import { AssetClusterRepository } from "./repositories/asset/asset_cluster.repository";
 
 AzureAppInsightsService.init();
 
@@ -42,6 +44,13 @@ async function setUpApi() {
     firstName: "Admin",
     lastName: "Admin",
   });
+
+  const assetClusterRepository = new AssetClusterRepository();
+  const clusters = await assetClusterRepository.get()
+  if(clusters.length == 0){
+    console.log("No clusters found, creating prod model...")
+    fetch(`${PYTHON_BASE_URL}create-prod-model`)
+  }
 
   const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
   await assetBaseCurrencySyncService.syncBaseCurrencies();

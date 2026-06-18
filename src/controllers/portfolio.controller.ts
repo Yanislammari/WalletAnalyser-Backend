@@ -137,11 +137,13 @@ class PortfolioController {
       const portfolioId: string = req.params.portfolioId as string;
       const assetId: string = req.query.assetId as string;
       const date: string = req.query.date as string;
-      const currencyId: string = req.query.currencyId as string;
 
-      if (!assetId || !date || !currencyId) {
-        return res.status(400).json({ message: "assetId, date and currencyId query parameters are required" });
+      if (!assetId || !date) {
+        return res.status(400).json({ message: "assetId and date query parameters are required" });
       }
+
+      const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
+      const currencyId = portfolio.displayCurrencyId ?? "";
 
       const avgPrice: number | null = await this.portfolioService.getAverageBuyPricePerShare(portfolioId, assetId, date, currencyId);
       return res.status(200).json({ averageBuyPrice: avgPrice });
@@ -287,10 +289,11 @@ class PortfolioController {
   public async getPortfolioTotal(req: Request, res: Response): Promise<Response> {
     try {
       const portfolioId: string = req.params.portfolioId as string;
-      const currencyId: string = req.query.currencyId as string;
+      const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
+      const currencyId = portfolio.displayCurrencyId;
 
       if (!currencyId) {
-        return res.status(400).json({ message: "currencyId query parameter is required" });
+        return res.status(400).json({ message: "Portfolio has no base currency set. Please edit the portfolio to add one." });
       }
 
       const response: PortfolioTotalResponseDto = await this.portfolioTotalService.getPortfolioTotal(portfolioId, currencyId);
@@ -310,10 +313,11 @@ class PortfolioController {
   public async getMetrics(req: Request, res: Response): Promise<Response> {
     try {
       const portfolioId: string = req.params.portfolioId as string;
-      const currencyId: string = req.query.currencyId as string;
+      const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
+      const currencyId = portfolio.displayCurrencyId;
 
       if (!currencyId) {
-        return res.status(400).json({ message: "currencyId query parameter is required" });
+        return res.status(400).json({ message: "Portfolio has no base currency set." });
       }
 
       const response: MetricResponseDto = await this.metricService.getMetrics(portfolioId, currencyId);
