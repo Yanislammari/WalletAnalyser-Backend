@@ -1,14 +1,15 @@
-import { PortfolioRepository, UserRepository } from "../repositories";
+import { CurrenciesRepository, PortfolioRepository, UserRepository } from "../repositories";
 import { BadgeRepository } from "../repositories/badge/badge.repository";
 import { UserBadgeRepository } from "../repositories/badge/badge_user.repository";
 import { attributesUserBadge, LEVEL_ORDER, LevelBadge, UserBadge } from '../db_schema/badge/user_badge';
 import { attributesBadge } from '../db_schema/badge/badge';
-import { attributesPortfolio, attributesUser } from "../db_schema";
+import { attributesCurrency, attributesPortfolio, attributesUser } from "../db_schema";
 import { BADGE_RULES, BadgeCreation, UserStats } from "../models/UserStats";
 import { BASE_URL } from "../constants/env";
 import { PortfolioTotalService } from "./portfolio/portfolio.total.service";
 
 export class BadgeService {
+  private readonly currencyRepository = new CurrenciesRepository()
   private readonly badgeRepository : BadgeRepository = new BadgeRepository()
   private readonly userBadgeRepository : UserBadgeRepository = new UserBadgeRepository()
   private readonly userRepository : UserRepository = new UserRepository()
@@ -55,7 +56,11 @@ export class BadgeService {
     let numberOfEtfSell = 1;
   
     for(const portfolio of userPortfolios) {
-      const size = await this.portfolioTotalService.getPortfolioTotal(portfolio.uuid, "USD")
+      const currencyId = await this.currencyRepository.get({
+        where : {[attributesCurrency.currency_name] : "USD"}
+      })
+      if(currencyId.length == 0) throw new Error("NO_CURRENCY")
+      const size = await this.portfolioTotalService.getPortfolioTotal(portfolio.uuid, currencyId[0].uuid)
       if(size.portfolioMarketValue > max) {
         max = size.portfolioMarketValue
       }
@@ -115,12 +120,12 @@ export class BadgeService {
   async createAllBadges() {
     const imageUrl = `${BASE_URL}images/`;
     const badgesToAdd: BadgeCreation[] = [
-      {badge_image_path : imageUrl +"account.svg", badge_title : "Account creation !", badge_label : "Create an account", check : (s : UserStats) =>{
+      {badge_image_path : imageUrl +"account.svg", badge_title : "Account creation !", badge_label : "Create an account.", check : (s : UserStats) =>{
         if(s.hasAccount) return LevelBadge.BEGINNER
         return null
       }},
       {
-        badge_image_path : imageUrl + "buy_assets.svg", badge_label : "Action buyer", badge_title : "Risk lover ? Buy more to find if you like that", check : (s : UserStats) => {
+        badge_image_path : imageUrl + "buy_assets.svg", badge_title : "Action buyer", badge_label : "Risk lover ? Buy more to find if you like that.", check : (s : UserStats) => {
           return this.getLevelBadgeActionOnAsset(s.numberOfAssetBuy)
         }
       },
