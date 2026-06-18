@@ -17,6 +17,7 @@ export class AssetInfoModel {
 }
 
 export class AssetDatabaseModel {
+  display_name : string | null;
   official_name: string | null;
   ticker_name: string | null;
   asset_type: AssetType | null;
@@ -25,6 +26,7 @@ export class AssetDatabaseModel {
   base_currency_uuid: string | null;
 
   constructor(
+    display_name : string | null,
     official_name: string | null,
     ticker_name: string | null,
     asset_type: AssetType | null,
@@ -32,6 +34,7 @@ export class AssetDatabaseModel {
     country_uuid: string | null,
     base_currency_uuid: string | null
   ) {
+    this.display_name = display_name;
     this.official_name = official_name;
     this.ticker_name = ticker_name;
     this.asset_type = asset_type;

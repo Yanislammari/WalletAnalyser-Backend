@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { PortfolioService } from "../services/portfolio/portfolio.service";
+import { PortfolioTotalService } from "../services/portfolio/portfolio.total.service";
+import { MetricService } from "../services/portfolio/metric.service";
 import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add.portfolio.request.dto";
 import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add.asset.buy.request.dto";
 import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add.asset.sell.request.dto";
@@ -7,12 +9,18 @@ import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add.asset
 import { AssetBuyResponseDto, AssetDividendResponseDto, AssetSellResponseDto, PortfolioResponseDto } from "../dtos";
 import { PaginatedResponseDto } from "../dtos/common/paginated.response.dto";
 import AssetCountResponse from "../dtos/portfolio/responses/asset.count.response";
+import { PortfolioTotalResponseDto } from "../dtos/portfolio/responses/portfolio.total.response.dto";
+import { MetricResponseDto } from "../dtos/portfolio/responses/metric.response.dto";
 
 class PortfolioController {
   private readonly portfolioService: PortfolioService;
+  private readonly portfolioTotalService: PortfolioTotalService;
+  private readonly metricService: MetricService;
 
   constructor() {
     this.portfolioService = new PortfolioService();
+    this.portfolioTotalService = new PortfolioTotalService();
+    this.metricService = new MetricService();
   }
 
   public async createPortfolio(req: Request, res: Response): Promise<Response> {
@@ -106,6 +114,43 @@ class PortfolioController {
     }
   }
 
+  public async getAvailableShares(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId: string = req.params.portfolioId as string;
+      const assetId: string = req.query.assetId as string;
+      const date: string = req.query.date as string;
+
+      if (!assetId || !date) {
+        return res.status(400).json({ message: "assetId and date query parameters are required" });
+      }
+
+      const availableShares: number = await this.portfolioService.getAvailableShares(portfolioId, assetId, date);
+      return res.status(200).json({ availableShares });
+    }
+    catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getAverageBuyPrice(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId: string = req.params.portfolioId as string;
+      const assetId: string = req.query.assetId as string;
+      const date: string = req.query.date as string;
+      const currencyId: string = req.query.currencyId as string;
+
+      if (!assetId || !date || !currencyId) {
+        return res.status(400).json({ message: "assetId, date and currencyId query parameters are required" });
+      }
+
+      const avgPrice: number | null = await this.portfolioService.getAverageBuyPricePerShare(portfolioId, assetId, date, currencyId);
+      return res.status(200).json({ averageBuyPrice: avgPrice });
+    }
+    catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async addAssetSell(req: Request, res: Response): Promise<Response> {
     try {
       const request: AddAssetSellRequestDto = req.body;
@@ -115,6 +160,9 @@ class PortfolioController {
     catch (error) {
       if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
         return res.status(404).json({ message: "Portfolio not found" });
+      }
+      if (error instanceof Error && error.message === "INSUFFICIENT_SHARES") {
+        return res.status(422).json({ message: "INSUFFICIENT_SHARES" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }
@@ -231,6 +279,49 @@ class PortfolioController {
     catch (error) {
       if (error instanceof Error && error.message === "DIVIDEND_NOT_FOUND") {
         return res.status(404).json({ message: "Asset dividend not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getPortfolioTotal(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId: string = req.params.portfolioId as string;
+      const currencyId: string = req.query.currencyId as string;
+
+      if (!currencyId) {
+        return res.status(400).json({ message: "currencyId query parameter is required" });
+      }
+
+      const response: PortfolioTotalResponseDto = await this.portfolioTotalService.getPortfolioTotal(portfolioId, currencyId);
+      return res.status(200).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
+        return res.status(404).json({ message: "Portfolio not found" });
+      }
+      if (error instanceof Error && error.message === "CURRENCY_NOT_FOUND") {
+        return res.status(404).json({ message: "Currency not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getMetrics(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId: string = req.params.portfolioId as string;
+      const currencyId: string = req.query.currencyId as string;
+
+      if (!currencyId) {
+        return res.status(400).json({ message: "currencyId query parameter is required" });
+      }
+
+      const response: MetricResponseDto = await this.metricService.getMetrics(portfolioId, currencyId);
+      return res.status(200).json(response);
+    }
+    catch (error) {
+      if (error instanceof Error && error.message === "CURRENCY_NOT_FOUND") {
+        return res.status(404).json({ message: "Currency not found" });
       }
       return res.status(500).json({ message: "Internal server error" });
     }

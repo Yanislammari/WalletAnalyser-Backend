@@ -2,13 +2,17 @@ import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { Portfolio } from "./portfolio";
 import { Currency } from "../currencies/currency";
+import { Asset } from "../asset/asset";
 
 export const attributesUserAssetDividend = {
   uuid: "uuid",
   portfolio_uuid: "portfolio_uuid",
+  asset_uuid: "asset_uuid",
+  company_name: "company_name",
   currency_uuid: "currency_uuid",
   cashflow_date: "cashflow_date",
   cashflow_amount: "cashflow_amount",
+  source_buy_uuid: "source_buy_uuid",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -16,9 +20,12 @@ export const attributesUserAssetDividend = {
 export class UserAssetDividend extends Model {
   public uuid!: string;
   public portfolio_uuid!: string;
+  public asset_uuid!: string | null;
+  public company_name!: string | null;
   public currency_uuid!: string;
   public cashflow_date!: Date;
   public cashflow_amount!: number;
+  public source_buy_uuid!: string | null;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -39,6 +46,18 @@ UserAssetDividend.init(
       },
       onDelete: "CASCADE",
     },
+    asset_uuid: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: Asset,
+        key: "uuid",
+      },
+    },
+    company_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     currency_uuid: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -55,6 +74,10 @@ UserAssetDividend.init(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    source_buy_uuid: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
   },
   {
     sequelize,
@@ -63,5 +86,6 @@ UserAssetDividend.init(
 
 UserAssetDividend.belongsTo(Portfolio, { as: "portfolio", foreignKey: attributesUserAssetDividend.portfolio_uuid });
 UserAssetDividend.belongsTo(Currency, { as: "currency", foreignKey: attributesUserAssetDividend.currency_uuid });
+UserAssetDividend.belongsTo(Asset, { as: "asset", foreignKey: attributesUserAssetDividend.asset_uuid });
 
 Portfolio.hasMany(UserAssetDividend, { foreignKey: "portfolio_uuid", onDelete: "CASCADE", hooks: true });

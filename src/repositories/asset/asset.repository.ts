@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Asset, attributesAsset } from "../../db_schema";
+import { Asset, attributesAsset, Country, Sector } from "../../db_schema";
 import { AssetDatabaseModel } from "../../models";
 import { BaseRepository } from "../base.repository";
 
@@ -84,7 +84,27 @@ export class AssetRepository extends BaseRepository<Asset> {
     }
   }
 
-  async addAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
+  async addCustomAsset(data: {
+    ticker_name: string | null;
+    official_name: string | null;
+    base_currency_uuid: string | null;
+    asset_type: string | null;
+  }): Promise<Asset> {
+    // Return existing regular or custom asset if ticker already exists
+    const existing = data.ticker_name ? await this.getAssetFromTicker(data.ticker_name) : null;
+    if (existing) return existing;
+
+    const newAsset = await Asset.create({
+      [attributesAsset.base_currency_uuid]: data.base_currency_uuid,
+      [attributesAsset.asset_type]: data.asset_type,
+      [attributesAsset.official_name]: data.official_name,
+      [attributesAsset.ticker_name]: data.ticker_name,
+      [attributesAsset.is_custom]: true,
+    });
+    return newAsset;
+  }
+
+  async addStrictlyNewAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
     try {
       if (asset.ticker_name === null && asset.official_name === null) {
         throw new Error("Both ticker_name and official_name cannot be null");
@@ -98,6 +118,32 @@ export class AssetRepository extends BaseRepository<Asset> {
         return existingAssetByOfficialName;
       }
       const newAsset = await Asset.create({
+        [attributesAsset.display_name]: asset.display_name,
+        [attributesAsset.base_currency_uuid]: asset.base_currency_uuid,
+        [attributesAsset.asset_type]: asset.asset_type,
+        [attributesAsset.official_name]: asset.official_name,
+        [attributesAsset.ticker_name]: asset.ticker_name,
+        [attributesAsset.sector_uuid]: asset.sector_uuid,
+        [attributesAsset.country_uuid]: asset.country_uuid,
+      });
+      return newAsset;
+    } catch (error) {
+      console.error(`Error adding ticker ${asset.ticker_name} to database:`, error);
+      throw error;
+    }
+  }
+
+  async addAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
+    try {
+      if (asset.ticker_name === null) {
+        throw new Error("Both ticker_name and official_name cannot be null");
+      }
+      const existingAsset = await this.getAssetFromTicker(asset.ticker_name ?? "");
+      if (existingAsset) {
+        return existingAsset;
+      }
+      const newAsset = await Asset.create({
+        [attributesAsset.display_name]: asset.display_name,
         [attributesAsset.base_currency_uuid]: asset.base_currency_uuid,
         [attributesAsset.asset_type]: asset.asset_type,
         [attributesAsset.official_name]: asset.official_name,
@@ -136,6 +182,7 @@ export class AssetRepository extends BaseRepository<Asset> {
     try {
       await Asset.update(
         {
+          [attributesAsset.display_name]: asset.display_name,
           [attributesAsset.base_currency_uuid]: asset.base_currency_uuid,
           [attributesAsset.asset_type]: asset.asset_type,
           [attributesAsset.official_name]: asset.official_name,
@@ -212,5 +259,38 @@ export class AssetRepository extends BaseRepository<Asset> {
         length: 0,
       };
     }
+  }
+
+  async getAssetsFull(asset_uuid : string): Promise<Asset | null>{
+    const result = await Asset.findOne({
+      where : { [attributesAsset.uuid] : asset_uuid},
+      include : [
+        {
+          model : Sector,
+          as : "sector",
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
+    return result
+  }
+
+  async assetFullPerSector(sector_uuid : string): Promise<Asset[]>{
+    return await Asset.findAll({
+      where : {[attributesAsset.sector_uuid] : sector_uuid},
+      include : [
+        {
+          model: Sector,
+          as : "sector"
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
   }
 }
