@@ -26,6 +26,7 @@ export class PortfolioMapper {
       userId: entity.user_uuid,
       name: entity.name,
       displayCurrencyId: entity.display_currency_uuid,
+      displayCurrencyName: entity.display_currency?.currency_name ?? null,
       createdAt: entity.dataValues.created_at,
       updatedAt: entity.dataValues.updated_at,
     };
