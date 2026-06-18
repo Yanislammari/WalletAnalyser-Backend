@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
-import { AuthService } from "../services/auth.service";
-import { AuthResponseDto, RegisterRequestDto, RegisterSuperUserRequestDto, SuperUserRegisterDto, UserResponseDto, UsersWithDataResponseDto } from "../dtos";
+import { RegisterSuperUserRequestDto, SuperUserRegisterDto, UserResponseDto } from "../dtos";
 import { UserService } from "../services/user.service";
 
 class UserController {
@@ -12,12 +11,9 @@ class UserController {
 
   public async get_all_users_intro(req: Request, res: Response): Promise<Response> {
     try {
-      const response: UsersWithDataResponseDto = await this.userService.get_users_intro();
+      const response = await this.userService.get_users_intro();
       return res.status(200).json(response);
     } catch (error) {
-      /**if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
-        return res.status(409).json({ message: "Email already exists" });
-      }**/
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -25,7 +21,9 @@ class UserController {
   public async get_all_users_offset(req: Request, res: Response): Promise<Response> {
     try {
       const offset = Number(req.query.offset) || 0
-      const response: UserResponseDto[] = await this.userService.get_users_offset(offset);
+      const limit = Number(req.query.limit) || 100
+      const search = req.query.search as string
+      const response = await this.userService.get_users_offset(offset, limit, search);
       return res.status(200).json(response);
     } catch (error) {
       /**if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {

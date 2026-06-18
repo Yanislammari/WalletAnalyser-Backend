@@ -37,6 +37,10 @@ SectorAllias.init(
     sector_allias_name: {
       type: DataTypes.STRING,
       allowNull: false,
+      unique: {
+        name: "unique_sector_allias_constraint",
+        msg: "Sector allias already exists in the database",
+      },
     },
   },
   {
@@ -44,5 +48,12 @@ SectorAllias.init(
   }
 );
 
-SectorAllias.belongsTo(Sector, { as: "sector", foreignKey: attributesSectorAllias.sector_uuid });
-Sector.hasMany(SectorAllias, { as: "sectorAllias", foreignKey: attributesSectorAllias.sector_uuid });
+SectorAllias.belongsTo(Sector, { 
+  as: "sector", 
+  foreignKey: attributesSectorAllias.sector_uuid,
+  onDelete: "CASCADE" 
+});
+Sector.hasMany(SectorAllias, { 
+  as: "sectorAllias", 
+  foreignKey: attributesSectorAllias.sector_uuid
+});

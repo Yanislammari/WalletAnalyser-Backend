@@ -49,4 +49,4 @@ AssetPrice.init(
   }
 );
 
-AssetPrice.belongsTo(Asset, { as: "asset", foreignKey: attributesAssetPrice.asset_uuid });
+AssetPrice.belongsTo(Asset, { as: "asset", foreignKey: attributesAssetPrice.asset_uuid, onDelete : "CASCADE" });

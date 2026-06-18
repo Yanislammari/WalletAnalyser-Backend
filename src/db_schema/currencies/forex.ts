@@ -14,6 +14,8 @@ export class Forex extends Model {
   public uuid!: string;
   public base_currency!: string;
   public quote_currency!: string;
+  public baseCurrency! : Currency;
+  public quoteCurrency! : Currency;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -47,5 +49,11 @@ Forex.init(
   }
 );
 
-Forex.belongsTo(Currency, { as: "baseCurrency", foreignKey: attributesForex.base_currency });
-Forex.belongsTo(Currency, { as: "quoteCurrency", foreignKey: attributesForex.quote_currency });
+Forex.belongsTo(Currency, { 
+  as: "baseCurrency", 
+  foreignKey: attributesForex.base_currency,
+  onDelete : "CASCADE"
+});
+Forex.belongsTo(Currency, { as: "quoteCurrency", foreignKey: attributesForex.quote_currency,
+  onDelete : "CASCADE"
+});

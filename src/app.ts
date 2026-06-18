@@ -12,6 +12,9 @@ import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
 import ImportRoutes from "./routes/import.routes";
 import AssetRoutes from "./routes/asset.routes";
+import SectorsRoutes from "./routes/sectors.routes";
+import CountriesRoutes from "./routes/countries.routes";
+import multer from "multer";
 
 AzureAppInsightsService.init();
 
@@ -23,7 +26,6 @@ const app = express();
 async function setUpApi() {
   const authService = new AuthService();
   await startOfDatabase();
-
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
   authService.registerAdmin({
@@ -52,7 +54,15 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+export const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
 app.get("/", (_, res) => {
   res.send("PA : WalletAnalyser Backend");
@@ -67,6 +77,8 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
+app.use("/sector",SectorsRoutes());
+app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
 app.use("/admin", AdminRoutes());

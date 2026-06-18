@@ -1,8 +1,11 @@
 import { Op } from "sequelize";
 import { Sector, SectorAllias, attributesSector, attributesSectorAllias } from "../../db_schema";
+import { BaseRepository } from "../base.repository";
 
-export class SectorRepository {
-  constructor() {}
+export class SectorRepository extends BaseRepository<Sector> {
+  constructor() {
+    super(Sector);
+  }
 
   async getSectorByName(sectorName: string): Promise<Sector | null> {
     try {

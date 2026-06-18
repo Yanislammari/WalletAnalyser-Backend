@@ -1,4 +1,4 @@
-export * from "./rfr.repository";
+export * from "./rfr/rfr.repository";
 export * from "./country/country.repository";
 export * from "./country/country_concentration.repository";
 export * from "./country/country_allias.repository";
@@ -8,8 +8,10 @@ export * from "./asset/etf_holding.repository";
 export * from "./sector/sector_concentration.repository";
 export * from "./sector/sector_allias.repository";
 export * from "./sector/sector.repository";
-export * from "./currencies.repository";
+export * from "./currencies/currencies.repository";
+export * from "./currencies/forex.repository";
 export * from "./user.repository";
+export * from "./rfr/rfr_country.repository";
 export * from "./portfolio/portfolio.repository";
 export * from "./portfolio/user.asset.buy.repository";
 export * from "./portfolio/user.asset.sell.repository";

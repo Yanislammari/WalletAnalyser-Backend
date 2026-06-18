@@ -11,7 +11,14 @@ export abstract class BaseRepository<T extends Model> {
     return this.model.findByPk(id);
   }
 
-  public async get(options?: FindOptions): Promise<T[]> {
+  public async get(options?: FindOptions, select?: string[]): Promise<T[]> {
+    if (select && select.length > 0) {
+      const findOptions = { 
+        ...options, 
+        attributes: select 
+      } as FindOptions;
+      return this.model.findAll(findOptions);
+    }
     return this.model.findAll(options);
   }
 

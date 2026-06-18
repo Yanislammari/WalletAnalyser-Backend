@@ -1,8 +1,11 @@
 import { Op } from "sequelize";
 import { Country, CountryAllias, attributesCountryAllias } from "../../db_schema";
+import { BaseRepository } from "../base.repository";
 
-export class CountryAlliasRepository {
-  constructor() {}
+export class CountryAlliasRepository extends BaseRepository<CountryAllias> {
+  constructor() {
+    super(CountryAllias)
+  }
 
   async getCountryAlliasByName(countryAlliasName: string): Promise<CountryAllias | null> {
     try {

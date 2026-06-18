@@ -7,7 +7,7 @@ export const attributesEtfHoldingsAsset = {
   uuid: "uuid",
   etf_uuid: "etf_uuid",
   asset_uuid: "asset_uuid",
-  asset_percentatge_concentration_in_etf: "asset_percentatge_concentration_in_etf",
+  asset_percentage_concentration_in_etf: "asset_percentage_concentration_in_etf",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -16,7 +16,8 @@ export class EtfHoldingsAsset extends Model {
   public uuid!: string;
   public etf_uuid!: string;
   public asset_uuid!: string;
-  public asset_percentatge_concentration_in_etf!: number;
+  public asset_percentage_concentration_in_etf!: number;
+  public asset! : Asset;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -44,7 +45,7 @@ EtfHoldingsAsset.init(
         key: "uuid",
       },
     },
-    asset_percentatge_concentration_in_etf: {
+    asset_percentage_concentration_in_etf: {
       type: DataTypes.FLOAT,
       allowNull: false,
     },
@@ -54,5 +55,5 @@ EtfHoldingsAsset.init(
   }
 );
 
-EtfHoldingsAsset.belongsTo(Asset, { as: "etf", foreignKey: attributesEtfHoldingsAsset.etf_uuid });
-EtfHoldingsAsset.belongsTo(Asset, { as: "asset", foreignKey: attributesEtfHoldingsAsset.asset_uuid });
+EtfHoldingsAsset.belongsTo(Asset, { as: "etf", foreignKey: attributesEtfHoldingsAsset.etf_uuid, onDelete : "CASCADE" });
+EtfHoldingsAsset.belongsTo(Asset, { as: "asset", foreignKey: attributesEtfHoldingsAsset.asset_uuid, onDelete : "CASCADE" });

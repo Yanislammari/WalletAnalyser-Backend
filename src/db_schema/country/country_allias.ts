@@ -37,6 +37,10 @@ CountryAllias.init(
     country_allias_name: {
       type: DataTypes.STRING,
       allowNull: false,
+      unique: {
+        name: "unique_country_allias_constraint",
+        msg: "Country allias already exists in the database",
+      },
     },
   },
   {
@@ -44,5 +48,13 @@ CountryAllias.init(
   }
 );
 
-CountryAllias.belongsTo(Country, { as: "country", foreignKey: attributesCountryAllias.country_uuid });
-Country.hasMany(CountryAllias, { as: "countryAllias", foreignKey: attributesCountryAllias.country_uuid });
+CountryAllias.belongsTo(Country, { 
+  as: "country", 
+  foreignKey: attributesCountryAllias.country_uuid,
+  onDelete: "CASCADE"
+});
+
+Country.hasMany(CountryAllias, { 
+  as: "countryAllias", 
+  foreignKey: attributesCountryAllias.country_uuid
+});
