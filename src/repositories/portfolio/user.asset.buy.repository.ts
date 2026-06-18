@@ -1,5 +1,7 @@
 import { Op } from "sequelize";
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
+import { AssetPrice } from "../../db_schema/asset/asset_price";
+import { Asset } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 
 export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
@@ -36,6 +38,13 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
 
   public async getAllByPortfolioId(portfolioId: string): Promise<UserAssetBuy[]> {
     return this.model.findAll({ where: { portfolio_uuid: portfolioId } });
+  }
+
+  public async getAllWithAssetByPortfolioId(portfolioId: string): Promise<UserAssetBuy[]> {
+    return this.model.findAll({
+      where: { portfolio_uuid: portfolioId },
+      include: [{ model: AssetPrice, as: "asset_price", include: [{ model: Asset, as: "asset" }] }],
+    });
   }
 
   public async countByPortfolioId(portfolioId: string): Promise<number> {
