@@ -1,6 +1,5 @@
 import { AssetRepository } from "../repositories/asset/asset.repository";
 import { AssetPriceRepository } from "../repositories/asset/asset_price.repository";
-import { CurrenciesRepository } from "../repositories/currencies.repository";
 import { AssetDividendRepository } from "../repositories/asset/asset.dividend.repository";
 import { YahooFinanceService } from "./yahoo.finance.service";
 import { AssetMapper } from "../mappers/asset.mapper";
@@ -8,6 +7,7 @@ import { AssetResponseDto } from "../dtos/asset/responses/asset.response.dto";
 import { AssetPriceResponseDto } from "../dtos/asset/responses/asset.price.response.dto";
 import { Asset } from "../db_schema/asset/asset";
 import { AssetPrice } from "../db_schema/asset/asset_price";
+import { CurrenciesRepository } from "../repositories";
 
 export class AssetService {
   private readonly assetRepository: AssetRepository;
@@ -143,7 +143,7 @@ export class AssetService {
     }
 
     // For custom assets with no historical data yet, fall back to live Yahoo price
-    if (!assetPrice && asset.is_custom && asset.ticker_name) {
+    if (!assetPrice && asset.ticker_name) {
       const quote = await this.yahooFinanceService.fetchAssetQuote(asset.ticker_name);
       if (!quote || quote.price == null) return null;
       return {
