@@ -11,6 +11,7 @@ export interface UserResponseDto {
   subscribe : boolean;
   userType: UserType;
   activated: boolean;
+  timeMsGift: number;
   createdAt: Date;
   updatedAt: Date;
 }

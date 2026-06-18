@@ -15,6 +15,7 @@ export class UserMapper {
       ban: entity.ban,
       subscribe : entity.subscribe,
       userType: entity.user_type,
+      timeMsGift: entity.gift_date.getTime(),
       activated: entity.activated,
       createdAt: entity.dataValues.created_at,
       updatedAt: entity.dataValues.updated_at,

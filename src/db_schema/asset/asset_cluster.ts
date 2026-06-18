@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { AssetType } from "../../dtos";
-import { Asset } from "./asset";
+import { Asset, attributesAsset } from "./asset";
 
 export const attributesAssetCluster = {
   uuid: "uuid",
@@ -45,6 +45,7 @@ export class AssetCluster extends Model {
   public year_pct_change!: number;
   public ebitda_trend!: number;
   public revenue!: number;
+  public asset! : Asset;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -134,4 +135,4 @@ AssetCluster.init(
   }
 );
 
-AssetCluster.belongsTo(Asset, { as: "asset_cluster", foreignKey: attributesAssetCluster.asset_uuid, onDelete : "CASCADE" });
+AssetCluster.belongsTo(Asset, { as: "asset", foreignKey: attributesAssetCluster.asset_uuid, onDelete : "CASCADE" });

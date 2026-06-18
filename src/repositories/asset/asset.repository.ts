@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Asset, attributesAsset } from "../../db_schema";
+import { Asset, attributesAsset, Country, Sector } from "../../db_schema";
 import { AssetDatabaseModel } from "../../models";
 import { BaseRepository } from "../base.repository";
 
@@ -259,5 +259,38 @@ export class AssetRepository extends BaseRepository<Asset> {
         length: 0,
       };
     }
+  }
+
+  async getAssetsFull(asset_uuid : string): Promise<Asset | null>{
+    const result = await Asset.findOne({
+      where : { [attributesAsset.uuid] : asset_uuid},
+      include : [
+        {
+          model : Sector,
+          as : "sector",
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
+    return result
+  }
+
+  async assetFullPerSector(sector_uuid : string): Promise<Asset[]>{
+    return await Asset.findAll({
+      where : {[attributesAsset.sector_uuid] : sector_uuid},
+      include : [
+        {
+          model: Sector,
+          as : "sector"
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
   }
 }
