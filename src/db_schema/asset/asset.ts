@@ -5,18 +5,13 @@ import { Sector } from "../sector/sector";
 import { Country } from '../country/country';
 import { AssetType } from "../../dtos";
 
-export enum UserType {
-  USER = "USER",
-  ADMIN = "ADMIN",
-  SUPER_USER = "SUPER_USER"
-}
-
 export const attributesAsset = {
   uuid: "uuid",
   base_currency_uuid: "base_currency_uuid",
   asset_type: "asset_type",
   ticker_name: "ticker_name",
   official_name: "official_name",
+  display_name : "display_name",
   sector_uuid: "sector_uuid",
   country_uuid: "country_uuid",
   is_custom: "is_custom",
@@ -30,6 +25,7 @@ export class Asset extends Model {
   public asset_type!: AssetType;
   public ticker_name!: string;
   public official_name!: string;
+  public display_name!: string;
   public sector_uuid!: string;
   public country_uuid!: string;
   public is_custom!: boolean;
@@ -63,6 +59,10 @@ Asset.init(
       allowNull: true,
     },
     official_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    display_name: {
       type: DataTypes.STRING,
       allowNull: true,
     },
