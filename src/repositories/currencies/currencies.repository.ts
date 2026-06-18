@@ -1,6 +1,7 @@
+import { fn, col, Op } from "sequelize";
 import { attributesCurrency, attributesForexRate, Currency, ForexRate } from "../../db_schema";
 import { attributesForex, Forex } from "../../db_schema";
-import { BaseRepository } from "../base.repository";
+import { BaseRepository } from ".././base.repository";
 
 export class CurrenciesRepository extends BaseRepository<Currency> {
   constructor() {

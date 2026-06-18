@@ -30,7 +30,15 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
     });
   }
 
+  public async getAllByPortfolioId(portfolioId: string): Promise<UserAssetDividend[]> {
+    return this.model.findAll({ where: { portfolio_uuid: portfolioId } });
+  }
+
   public async countByPortfolioId(portfolioId: string): Promise<number> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
+  }
+
+  public async deleteBySourceBuyId(buyId: string): Promise<void> {
+    await this.model.destroy({ where: { source_buy_uuid: buyId } });
   }
 }

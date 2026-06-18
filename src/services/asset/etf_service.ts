@@ -136,6 +136,7 @@ export class EtfService {
     }
 
     const assetDb = new AssetDatabaseModel(
+      asset.display_name,
       asset.official_name,
       asset.ticker_name,
       asset.asset_type,
