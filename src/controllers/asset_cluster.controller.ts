@@ -32,8 +32,11 @@ class AssetClusterController {
 
   public async getUserStocksSummary(req : Request, res : Response): Promise<Response> {
     try {
-      const user_id = (req as any).user.id
-      const response = await this.assetClusterService.getUserStocksSummary(user_id);
+      const { portfolio_id } = req.params;
+      let response = {}
+      if(portfolio_id){
+        response = await this.assetClusterService.getUserStocksSummary(portfolio_id as string);
+      }
       return res.status(200).json({sectorsData : response});
     }
     catch (error) {

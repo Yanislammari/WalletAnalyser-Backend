@@ -130,7 +130,7 @@ export class AssetClusterService {
 
   async getUserStocksSummary(user_id : string) {
     const portfolios = await this.portfolioRepository.get({where : { [attributesPortfolio.user_uuid] : user_id}})
-
+    
     //mock assets
     const msft = await this.assetRepository.getAssetFromTicker("MSFT")
     const unh = await this.assetRepository.getAssetFromTicker("UNH")
