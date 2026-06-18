@@ -2,6 +2,7 @@ import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { User } from "../users/users";
 import { Currency } from "../currencies/currency";
+import type { InferAttributes } from "sequelize";
 
 export const attributesPortfolio = {
   uuid: "uuid",
@@ -19,6 +20,8 @@ export class Portfolio extends Model {
   public name!: string;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  // Eagerly loaded association
+  public display_currency?: Currency;
 }
 
 Portfolio.init(

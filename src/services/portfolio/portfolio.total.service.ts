@@ -6,8 +6,10 @@ import { PortfolioRepository } from "../../repositories/portfolio/portfolio.repo
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
+import { AssetPriceRepository } from "../../repositories/asset/asset_price.repository";
+import { AssetRepository } from "../../repositories/asset/asset.repository";
 import { PortfolioTotalResponseDto } from "../../dtos/portfolio/responses/portfolio.total.response.dto";
+import { CurrenciesRepository } from "../../repositories";
 
 export class PortfolioTotalService {
   private readonly portfolioRepository: PortfolioRepository;
@@ -15,6 +17,8 @@ export class PortfolioTotalService {
   private readonly userAssetSellRepository: UserAssetSellRepository;
   private readonly userAssetDividendRepository: UserAssetDividendRepository;
   private readonly currenciesRepository: CurrenciesRepository;
+  private readonly assetPriceRepository: AssetPriceRepository;
+  private readonly assetRepository: AssetRepository;
 
   // Cache for forex rates during a single calculation to avoid repeated DB hits
   private rateCache: Map<string, number> = new Map();
@@ -25,6 +29,8 @@ export class PortfolioTotalService {
     this.userAssetSellRepository = new UserAssetSellRepository();
     this.userAssetDividendRepository = new UserAssetDividendRepository();
     this.currenciesRepository = new CurrenciesRepository();
+    this.assetPriceRepository = new AssetPriceRepository();
+    this.assetRepository = new AssetRepository();
   }
 
   public async getPortfolioTotal(portfolioId: string, currencyId: string): Promise<PortfolioTotalResponseDto> {
@@ -46,15 +52,55 @@ export class PortfolioTotalService {
     const totalSells = await this.sumSells(sells, currencyId);
     const totalDividends = await this.sumDividends(dividends, currencyId);
     const netTotal = totalSells + totalDividends - totalInvested;
+    const portfolioMarketValue = await this.computeMarketValue(buys, sells, currencyId);
+    const totalValue = portfolioMarketValue + totalSells + totalDividends;
 
     return {
       totalInvested: Math.round(totalInvested * 100) / 100,
       totalSells: Math.round(totalSells * 100) / 100,
       totalDividends: Math.round(totalDividends * 100) / 100,
       netTotal: Math.round(netTotal * 100) / 100,
+      portfolioMarketValue: Math.round(portfolioMarketValue * 100) / 100,
+      totalValue: Math.round(totalValue * 100) / 100,
       currencyId: targetCurrency.uuid,
       currencyName: targetCurrency.currency_name,
     };
+  }
+
+  private async computeMarketValue(buys: UserAssetBuy[], sells: UserAssetSell[], currencyId: string): Promise<number> {
+    // company_name on buys/sells = asset.official_name ?? asset.ticker_name (set at buy creation time)
+    // Group net shares by company_name, then resolve to Asset for latest price
+    const netByCompany = new Map<string, number>();
+
+    for (const buy of buys) {
+      if (!buy.company_name || buy.asset_buy_share == null) continue;
+      netByCompany.set(buy.company_name, (netByCompany.get(buy.company_name) ?? 0) + buy.asset_buy_share);
+    }
+
+    for (const sell of sells) {
+      if (!sell.company_name || sell.asset_sell_share == null) continue;
+      netByCompany.set(sell.company_name, (netByCompany.get(sell.company_name) ?? 0) - sell.asset_sell_share);
+    }
+
+    const today = new Date();
+    let marketValue = 0;
+
+    for (const [companyName, shares] of netByCompany) {
+      if (shares <= 0) continue;
+
+      // Resolve asset: company_name was stored as official_name ?? ticker_name
+      let asset = await this.assetRepository.getAssetFromOfficialName(companyName);
+      if (!asset) asset = await this.assetRepository.getAssetFromTicker(companyName);
+      if (!asset) continue;
+
+      const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
+      if (!latestPrice) continue;
+
+      const rate = await this.getConversionRate(asset.base_currency_uuid, currencyId, today);
+      marketValue += shares * latestPrice.asset_price * rate;
+    }
+
+    return marketValue;
   }
 
   private async sumBuys(buys: UserAssetBuy[], targetCurrencyId: string): Promise<number> {

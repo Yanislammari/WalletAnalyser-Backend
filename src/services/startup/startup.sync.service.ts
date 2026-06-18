@@ -2,8 +2,8 @@ import { Currency, Forex } from "../../db_schema";
 import { Asset } from "../../db_schema/asset/asset";
 import { AssetRepository } from "../../repositories/asset/asset.repository";
 import { AssetDividendRepository } from "../../repositories/asset/asset.dividend.repository";
-import { CurrenciesRepository } from "../../repositories/currencies.repository";
 import { YahooFinanceService } from "../yahoo.finance.service";
+import { CurrenciesRepository } from "../../repositories";
 
 const HISTORY_YEARS = 5;
 const CHUNK_DELAY_MS = 100; // shorter delay — fire-and-forget background sync
