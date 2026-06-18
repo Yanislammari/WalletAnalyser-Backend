@@ -1,7 +1,6 @@
 export interface AddAssetBuyRequestDto {
   portfolioId: string;
-  companyName?: string;
-  assetPriceId?: string;
+  assetId?: string;
   buyCurrencyId: string;
   buyDate: string;
   assetBuyAmount?: number;

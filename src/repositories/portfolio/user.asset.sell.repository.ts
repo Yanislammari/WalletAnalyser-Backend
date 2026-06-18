@@ -34,8 +34,24 @@ export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
     });
   }
 
+  public async getAllByPortfolioId(portfolioId: string): Promise<UserAssetSell[]> {
+    return this.model.findAll({ where: { portfolio_uuid: portfolioId } });
+  }
+
   public async countByPortfolioId(portfolioId: string): Promise<number> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
+  }
+
+  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<number> {
+    const total = await this.model.sum("asset_sell_share", {
+      where: {
+        portfolio_uuid: portfolioId,
+        company_name: companyName,
+        sell_date: { [Op.lte]: upToDate },
+        asset_sell_share: { [Op.ne]: null },
+      },
+    });
+    return total || 0;
   }
 
   public async getDistinctCompanies(portfolioId: string): Promise<string[]> {

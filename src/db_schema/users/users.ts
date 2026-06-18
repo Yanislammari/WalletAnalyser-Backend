@@ -14,6 +14,7 @@ export const attributesUser = {
   userType: "user_type",
   subscribe: "subscribe",
   activated: "activated",
+  giftDate : "gift_date",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -30,6 +31,7 @@ export class User extends Model {
   public user_type!: UserType;
   public subscribe!: boolean;
   public activated!: boolean;
+  public gift_date!: Date;
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -90,6 +92,11 @@ User.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false
+    },
+    gift_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: () => new Date(Date.now() + 10 * 60 * 1000)
     },
     activated: {
       type: DataTypes.BOOLEAN,
