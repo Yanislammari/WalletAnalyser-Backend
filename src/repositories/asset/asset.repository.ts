@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Asset, attributesAsset } from "../../db_schema";
+import { Asset, attributesAsset, Country, Sector } from "../../db_schema";
 import { AssetDatabaseModel } from "../../models";
 import { BaseRepository } from "../base.repository";
 
@@ -82,6 +82,26 @@ export class AssetRepository extends BaseRepository<Asset> {
       console.error(`Error fetching asset with ticker ${ticker} from the database:`, error);
       return null;
     }
+  }
+
+  async addCustomAsset(data: {
+    ticker_name: string | null;
+    official_name: string | null;
+    base_currency_uuid: string | null;
+    asset_type: string | null;
+  }): Promise<Asset> {
+    // Return existing regular or custom asset if ticker already exists
+    const existing = data.ticker_name ? await this.getAssetFromTicker(data.ticker_name) : null;
+    if (existing) return existing;
+
+    const newAsset = await Asset.create({
+      [attributesAsset.base_currency_uuid]: data.base_currency_uuid,
+      [attributesAsset.asset_type]: data.asset_type,
+      [attributesAsset.official_name]: data.official_name,
+      [attributesAsset.ticker_name]: data.ticker_name,
+      [attributesAsset.is_custom]: true,
+    });
+    return newAsset;
   }
 
   async addStrictlyNewAssetFromAssetToDatabase(asset: AssetDatabaseModel): Promise<Asset> {
@@ -239,5 +259,38 @@ export class AssetRepository extends BaseRepository<Asset> {
         length: 0,
       };
     }
+  }
+
+  async getAssetsFull(asset_uuid : string): Promise<Asset | null>{
+    const result = await Asset.findOne({
+      where : { [attributesAsset.uuid] : asset_uuid},
+      include : [
+        {
+          model : Sector,
+          as : "sector",
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
+    return result
+  }
+
+  async assetFullPerSector(sector_uuid : string): Promise<Asset[]>{
+    return await Asset.findAll({
+      where : {[attributesAsset.sector_uuid] : sector_uuid},
+      include : [
+        {
+          model: Sector,
+          as : "sector"
+        },
+        {
+          model : Country,
+          as : "country"
+        }
+      ]
+    })
   }
 }

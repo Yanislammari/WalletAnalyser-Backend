@@ -23,6 +23,21 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
     }
   }
 
+  async getClosestPriceBeforeOrAt(assetUuid: string, date: Date): Promise<AssetPrice | null> {
+    try {
+      return await AssetPrice.findOne({
+        where: {
+          [attributesAssetPrice.asset_uuid]: assetUuid,
+          [attributesAssetPrice.asset_price_date]: { [Op.lte]: date },
+        },
+        order: [[attributesAssetPrice.asset_price_date, "DESC"]],
+      });
+    }
+    catch (error) {
+      throw error;
+    }
+  }
+
   async getLatestAssetPrice(assetUuid: string): Promise<AssetPrice | null> {
     try {
       const latestPrice = await AssetPrice.findOne({
@@ -30,7 +45,7 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
           [attributesAssetPrice.asset_uuid]: assetUuid,
         },
         order: [
-          [attributesAssetPrice.asset_price_date, "DESC"], // newest first
+          [attributesAssetPrice.asset_price_date, "DESC"],
         ],
       });
       return latestPrice;
@@ -38,6 +53,11 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
       console.error("Error fetching the latest asset price from the database:", error);
       throw error;
     }
+  }
+
+  async bulkCreatePrices(records: Array<{ asset_uuid: string; asset_price_date: Date; asset_price: number }>): Promise<void> {
+    if (records.length === 0) return;
+    await AssetPrice.bulkCreate(records as any, { ignoreDuplicates: true });
   }
 
   async getAssetPriceByUuid(uuid: string): Promise<AssetPrice | null> {

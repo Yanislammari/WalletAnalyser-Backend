@@ -31,11 +31,11 @@ export class PortfolioMapper {
     };
   }
 
-  public addAssetBuyDtoToEntity(dto: AddAssetBuyRequestDto): Partial<UserAssetBuy> {
+  public addAssetBuyDtoToEntity(dto: AddAssetBuyRequestDto, companyName?: string | null): Partial<UserAssetBuy> {
     return {
       portfolio_uuid: dto.portfolioId,
-      company_name: dto.companyName ?? null,
-      asset_price_uuid: dto.assetPriceId ?? null,
+      company_name: companyName ?? null,
+      asset_price_uuid: null,
       buy_currency_uuid: dto.buyCurrencyId,
       buy_date: dto.buyDate as unknown as Date,
       asset_buy_amount: dto.assetBuyAmount ?? null,
@@ -60,11 +60,11 @@ export class PortfolioMapper {
     };
   }
 
-  public addAssetSellDtoToEntity(dto: AddAssetSellRequestDto): Partial<UserAssetSell> {
+  public addAssetSellDtoToEntity(dto: AddAssetSellRequestDto, companyName?: string | null): Partial<UserAssetSell> {
     return {
       portfolio_uuid: dto.portfolioId,
-      company_name: dto.companyName ?? null,
-      asset_price_uuid: dto.assetPriceId ?? null,
+      company_name: companyName ?? null,
+      asset_price_uuid: null,
       sell_currency_uuid: dto.sellCurrencyId,
       sell_date: dto.sellDate as unknown as Date,
       asset_sell_amount: dto.assetSellAmount ?? null,
@@ -91,9 +91,11 @@ export class PortfolioMapper {
     };
   }
 
-  public addAssetDividendDtoToEntity(dto: AddAssetDividendRequestDto): Partial<UserAssetDividend> {
+  public addAssetDividendDtoToEntity(dto: AddAssetDividendRequestDto, companyName?: string | null): Partial<UserAssetDividend> {
     return {
       portfolio_uuid: dto.portfolioId,
+      asset_uuid: dto.assetId ?? null,
+      company_name: companyName ?? null,
       currency_uuid: dto.currencyId,
       cashflow_date: dto.cashflowDate as unknown as Date,
       cashflow_amount: dto.cashflowAmount,
@@ -104,6 +106,7 @@ export class PortfolioMapper {
     return {
       id: entity.uuid,
       portfolioId: entity.portfolio_uuid,
+      companyName: entity.company_name ?? null,
       currencyId: entity.currency_uuid,
       cashflowDate: String(entity.cashflow_date).split("T")[0],
       cashflowAmount: entity.cashflow_amount,

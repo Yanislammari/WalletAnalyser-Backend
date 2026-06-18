@@ -32,6 +32,24 @@ class CurrencyController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+
+  public async convert(req: Request, res: Response): Promise<Response> {
+    try {
+      const from: string = (req.query.from as string)?.toUpperCase();
+      const to: string = (req.query.to as string)?.toUpperCase();
+      const amount: number = parseFloat(req.query.amount as string);
+
+      if (!from || !to || isNaN(amount)) {
+        return res.status(400).json({ message: "Missing or invalid query params: from, to, amount" });
+      }
+
+      const convertedAmount: number = await this.currencyService.convertPrice(from, to, amount);
+      return res.status(200).json({ from, to, amount, convertedAmount });
+    }
+    catch (error) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
 }
 
 export default CurrencyController;

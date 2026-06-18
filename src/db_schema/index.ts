@@ -6,6 +6,8 @@ export * from "./asset/asset";
 export * from "./asset/asset_allias";
 export * from "./asset/etf_holdings";
 export * from "./asset/asset_price";
+export * from "./asset/asset_dividend";
+export * from "./asset/custom_asset";
 export * from "./country/country";
 export * from "./country/country_allias";
 export * from "./country/country_concentration";
@@ -20,3 +22,5 @@ export * from "./portfolio/portfolio";
 export * from "./portfolio/user_asset_buy";
 export * from "./portfolio/user_asset_sell";
 export * from "./portfolio/user_asset_dividend";
+export * from "./badge/badge";
+export * from "./badge/user_badge"

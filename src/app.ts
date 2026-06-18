@@ -1,16 +1,26 @@
 import { AzureAppInsightsService } from "./services/azure.app.insights.service";
 import express, { Router, Request, Response } from "express";
+import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
 import { startOfDatabase } from "./config";
 import { ExcelService, AuthService } from "./services";
+import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
+import { StartupSyncService } from "./services/startup/startup.sync.service";
 import AuthRoutes from "./routes/auth.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
+import ImportRoutes from "./routes/import.routes";
+import AssetRoutes from "./routes/asset.routes";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
+import { BadgeRepository } from "./repositories/badge/badge.repository";
+import { BadgeService } from "./services/badge.service";
+import BadgeRoutes from "./routes/badge.routes";
+import { createVerifyTokenMiddleware } from "./middleware/token";
+import ClusterRoutes from "./routes/asset_cluster.routes";
 
 AzureAppInsightsService.init();
 
@@ -22,6 +32,8 @@ const app = express();
 async function setUpApi() {
   const authService = new AuthService();
   await startOfDatabase();
+  const badgeService = new BadgeService();
+  await badgeService.createAllBadges()
   const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
   authService.registerAdmin({
@@ -29,7 +41,16 @@ async function setUpApi() {
     password: "MoiMeme94@",
     firstName: "Admin",
     lastName: "Admin",
-  })
+  });
+
+  const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
+  await assetBaseCurrencySyncService.syncBaseCurrencies();
+
+  // Fire-and-forget background sync (forex rates + dividends for 5 years)
+  const startupSyncService = new StartupSyncService();
+  startupSyncService.syncAll().catch((err) => {
+    console.error("[StartupSync] Unhandled error:", err instanceof Error ? err.message : String(err));
+  });
 }
 
 setUpApi();
@@ -43,6 +64,9 @@ app.use(
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+const imagesPath = path.join(__dirname, "asset", "images");
+app.use("/images",createVerifyTokenMiddleware(), express.static(imagesPath));
 
 export const upload = multer({
   storage: multer.memoryStorage(),
@@ -68,7 +92,10 @@ app.use("/sector",SectorsRoutes());
 app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
+app.use("/badges", BadgeRoutes());
+app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
+app.use("/import", ImportRoutes());
+app.use("/asset", AssetRoutes());
 
 export default app;
-
