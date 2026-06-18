@@ -1,5 +1,5 @@
 import { AzureAppInsightsService } from "./services/azure.app.insights.service";
-import express, { Router, Request, Response } from "express";
+import express from "express";
 import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -16,7 +16,6 @@ import AssetRoutes from "./routes/asset.routes";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
-import { BadgeRepository } from "./repositories/badge/badge.repository";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
 import { createVerifyTokenMiddleware } from "./middleware/token";
@@ -32,18 +31,18 @@ const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as str
 const app = express();
 
 async function setUpApi() {
-  const authService = new AuthService();
   await startOfDatabase();
-  const badgeService = new BadgeService();
-  await badgeService.createAllBadges()
-  const excelService = new ExcelService();
-  await excelService.addDataFromAdmin();
+  const authService = new AuthService();
   authService.registerAdmin({
     email: "alexisduplessis2003@gmail.com",
     password: "MoiMeme94@",
     firstName: "Admin",
     lastName: "Admin",
   });
+  const badgeService = new BadgeService();
+  await badgeService.createAllBadges()
+  /**const excelService = new ExcelService();
+  await excelService.addDataFromAdmin();
 
   const assetClusterRepository = new AssetClusterRepository();
   const clusters = await assetClusterRepository.get()
@@ -59,7 +58,7 @@ async function setUpApi() {
   const startupSyncService = new StartupSyncService();
   startupSyncService.syncAll().catch((err) => {
     console.error("[StartupSync] Unhandled error:", err instanceof Error ? err.message : String(err));
-  });
+  });**/
 }
 
 setUpApi();

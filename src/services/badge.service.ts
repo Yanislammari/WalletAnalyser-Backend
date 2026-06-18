@@ -1,16 +1,19 @@
-import { UserRepository } from "../repositories";
+import { PortfolioRepository, UserRepository } from "../repositories";
 import { BadgeRepository } from "../repositories/badge/badge.repository";
 import { UserBadgeRepository } from "../repositories/badge/badge_user.repository";
 import { attributesUserBadge, LEVEL_ORDER, LevelBadge, UserBadge } from '../db_schema/badge/user_badge';
 import { attributesBadge } from '../db_schema/badge/badge';
-import { attributesUser } from "../db_schema";
+import { attributesPortfolio, attributesUser } from "../db_schema";
 import { BADGE_RULES, BadgeCreation, UserStats } from "../models/UserStats";
 import { BASE_URL } from "../constants/env";
+import { PortfolioTotalService } from "./portfolio/portfolio.total.service";
 
 export class BadgeService {
   private readonly badgeRepository : BadgeRepository = new BadgeRepository()
   private readonly userBadgeRepository : UserBadgeRepository = new UserBadgeRepository()
   private readonly userRepository : UserRepository = new UserRepository()
+  private readonly portfolioRepository = new PortfolioRepository()
+  private readonly portfolioTotalService = new PortfolioTotalService()
   constructor() {}
 
   async getAllBadges(user_id : string) { // return length ( number of total badge ), new, badges, new_badges
@@ -41,8 +44,35 @@ export class BadgeService {
     })
     const newBadges : UserBadge[] = []
     const userBadges = await this.userBadgeRepository.getAllBadgesForUser(user_id)
+    const userPortfolios = await this.portfolioRepository.get({
+      where : {[attributesPortfolio.user_uuid] : user_id }
+    });
+    let max = 0;
+    let amountOfDividend = 0;
+    let numberOfAssetBuy = 10;
+    let numberOfAssetsSell = 5;
+    let numberOfEtfBuy = 3;
+    let numberOfEtfSell = 1;
+  
+    for(const portfolio of userPortfolios) {
+      const size = await this.portfolioTotalService.getPortfolioTotal(portfolio.uuid, "USD")
+      if(size.portfolioMarketValue > max) {
+        max = size.portfolioMarketValue
+      }
+      if(size.totalDividends > amountOfDividend){
+        amountOfDividend = size.totalDividends
+      }
+      // mock
+      // faire la logique pour le nombre d'asset buy, sell, etf buy, etf sell
+    }
     const stats: UserStats = { 
-      hasAccount: true
+      hasAccount: true,
+      portfolioValue : max,
+      amountOfDividend : amountOfDividend,
+      numberOfAssetBuy : numberOfAssetBuy,
+      numberOfAssetSell : numberOfAssetsSell,
+      numberOfETFBuy : numberOfEtfBuy,
+      numberOfETFSell : numberOfEtfSell
     };
 
     for (const rule of BADGE_RULES) {
@@ -68,13 +98,75 @@ export class BadgeService {
     return { newBadges , nextGiftDate : date.getTime() }
   }
 
+  private getLevelBadgeActionOnAsset(value: number) {
+    if (value >= 10) {
+      return LevelBadge.EXPERT
+    } else if (value >= 5) {
+      return LevelBadge.ADVANCED
+    } else if (value >= 3) {
+      return LevelBadge.INTERMEDIATE
+    } else if (value >= 1) {
+      return LevelBadge.BEGINNER
+    }
+
+    return null
+  }
+
   async createAllBadges() {
     const imageUrl = `${BASE_URL}images/`;
     const badgesToAdd: BadgeCreation[] = [
-      {badge_image_path : imageUrl +"account.svg", badge_label : "Create an account", badge_title : "Account creation !" , check : (s : UserStats) =>{
+      {badge_image_path : imageUrl +"account.svg", badge_title : "Account creation !", badge_label : "Create an account", check : (s : UserStats) =>{
         if(s.hasAccount) return LevelBadge.BEGINNER
         return null
-      }}
+      }},
+      {
+        badge_image_path : imageUrl + "buy_assets.svg", badge_label : "Action buyer", badge_title : "Risk lover ? Buy more to find if you like that", check : (s : UserStats) => {
+          return this.getLevelBadgeActionOnAsset(s.numberOfAssetBuy)
+        }
+      },
+      {
+        badge_image_path : imageUrl + "sell_assets.svg", badge_title : "Action seller", badge_label : "Profit taker ? Sell more and don't forget the taxes.", check : (s : UserStats) => {
+          return this.getLevelBadgeActionOnAsset(s.numberOfAssetSell)
+        }
+      },
+      {
+        badge_image_path : imageUrl + "buy_etf.svg", badge_title : "ETF buyer", badge_label : "Are you preparing for retirement ? Buy more etf to enjoy it.", check : (s : UserStats) => {
+          return this.getLevelBadgeActionOnAsset(s.numberOfETFBuy)
+        }
+      },
+      {
+        badge_image_path : imageUrl + "sell_etf.svg", badge_title : "ETF seller", badge_label : "Is retirement near ? Sell more ETF to enjoy it.", check : (s : UserStats) => {
+          return this.getLevelBadgeActionOnAsset(s.numberOfETFSell)
+        }
+      },
+      {
+        badge_image_path : imageUrl + "size.svg", badge_title : "Becoming Warren Buffet", badge_label : "Do you think you can meet Warren Buffet ? Increase the size of your portfolios to find out.", check : (s : UserStats) => {
+          if(s.portfolioValue > 2000) {
+            return LevelBadge.EXPERT
+          } else if (s.portfolioValue > 1000) {
+            return LevelBadge.ADVANCED
+          } else if (s.portfolioValue > 500) {
+            return LevelBadge.INTERMEDIATE
+          } else if (s.portfolioValue > 100) {
+            return LevelBadge.BEGINNER
+          }
+          return null
+        }
+      },
+      {
+        badge_image_path : imageUrl + "dividend.svg", badge_title : "Blue chips investor", badge_label : "Does TTE sounds fun to you ? Welp I guess keep going", check : (s : UserStats) => {
+          if(s.amountOfDividend > 200) {
+            return LevelBadge.EXPERT
+          } else if (s.amountOfDividend > 100) {
+            return LevelBadge.ADVANCED
+          } else if (s.amountOfDividend > 50) {
+            return LevelBadge.INTERMEDIATE
+          } else if (s.amountOfDividend > 10) {
+            return LevelBadge.BEGINNER
+          }
+          return null
+        }
+      },
     ]
     for(const badge of badgesToAdd) {
       const alreadyExisting = await this.badgeRepository.get({where : {[attributesBadge.badge_title] : badge.badge_title}})
