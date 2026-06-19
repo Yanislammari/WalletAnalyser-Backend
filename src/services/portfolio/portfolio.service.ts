@@ -115,47 +115,43 @@ export class PortfolioService {
 
     const assetBuy: UserAssetBuy = await this.userAssetBuyRepository.add(this.portfolioMapper.addAssetBuyDtoToEntity(request, companyName));
 
-    // Auto-create UserAssetDividend entries for any dividends whose ex_date >= buyDate.
-    // Derive share count: prefer explicit assetBuyShare, fall back to amount ÷ pricePerShare.
-    const effectiveShares: number | null =
-      request.assetBuyShare != null && request.assetBuyShare > 0
-        ? request.assetBuyShare
-        : request.assetBuyAmount != null &&
-          request.assetBuyPricePerShare != null &&
-          request.assetBuyPricePerShare > 0
-          ? request.assetBuyAmount / request.assetBuyPricePerShare
-          : null;
-
-    if (request.assetId && asset && effectiveShares != null && effectiveShares > 0) {
-      await this.autoCreateDividendsForBuy(
+    // Recalculate all consolidated dividend entries for this asset from the buy date onwards.
+    if (request.assetId && asset && companyName) {
+      await this.recalculateDividendsForAsset(
         request.portfolioId,
-        assetBuy.uuid,
         request.assetId,
         asset,
         companyName,
-        request.buyDate,
-        effectiveShares,
-        request.buyCurrencyId
+        request.buyDate
       ).catch((err) => {
-        console.error("[PortfolioService] auto-create dividends error:", err instanceof Error ? err.message : String(err));
+        console.error("[PortfolioService] recalculate dividends error (buy):", err instanceof Error ? err.message : String(err));
       });
     }
 
     return this.portfolioMapper.assetBuyEntityToDto(assetBuy);
   }
 
-  private async autoCreateDividendsForBuy(
+  /**
+   * Recalculates consolidated UserAssetDividend entries for a given (portfolio, asset) pair
+   * for all ex_dates on or after `fromDate`.
+   *
+   * For each ex_date, the net share count at that date is:
+   *   netShares = totalBought - totalSold  (up to and including ex_date)
+   *
+   * If netShares > 0  → create/replace one entry with cashflow_amount = dividend_per_share × netShares
+   * If netShares <= 0 → no entry (user had sold all shares before this dividend)
+   *
+   * Dividends are stored in the asset's base currency; the total service converts to
+   * the portfolio display currency when computing totals.
+   */
+  private async recalculateDividendsForAsset(
     portfolioId: string,
-    buyId: string,
     assetId: string,
     asset: Asset,
-    companyName: string | null,
-    buyDate: string,
-    shares: number,
-    buyCurrencyId: string
+    companyName: string,
+    fromDate: string
   ): Promise<void> {
-    // If AssetDividend has no data at all for this asset (e.g., startup sync hasn't run yet),
-    // fetch 5yr of dividends from Yahoo Finance now and store them.
+    // 1. Ensure asset-level dividends are in the DB (sync from Yahoo if missing)
     const oldestDates = await this.assetDividendRepository.getOldestDividendDatesByAssets([assetId]);
     if (!oldestDates.has(assetId) && asset.ticker_name) {
       try {
@@ -184,40 +180,33 @@ export class PortfolioService {
       }
     }
 
-    // Get dividends whose ex_date is on or after the buy date (dividends the user is entitled to)
-    const assetDividends: AssetDividend[] = await this.assetDividendRepository.getDividendsAfterDate(assetId, buyDate);
+    // 2. Get all asset-level dividends with ex_date >= fromDate
+    const assetDividends: AssetDividend[] = await this.assetDividendRepository.getDividendsAfterDate(assetId, fromDate);
     if (assetDividends.length === 0) return;
 
-    // Use the buy currency for dividends — they are denominated in the same currency as the purchase
-    const dividendCurrencyId: string = buyCurrencyId;
+    // 3. Dividends are stored in the asset's base currency (total service converts to portfolio currency)
+    const dividendCurrencyId: string | null = asset.base_currency_uuid ?? null;
+    if (!dividendCurrencyId) {
+      console.warn(`[PortfolioService] Asset ${assetId} has no base currency — skipping dividend recalculation`);
+      return;
+    }
 
-    // Determine if we need to convert from asset base currency to buy currency
-    const assetBaseCurrencyId: string | null = asset.base_currency_uuid ?? null;
-    const needsConversion: boolean = !!assetBaseCurrencyId && assetBaseCurrencyId !== buyCurrencyId;
+    // 4. Delete all existing UserAssetDividend entries for this (portfolio, asset) from fromDate
+    await this.userAssetDividendRepository.deleteByPortfolioAndAssetFromDate(portfolioId, assetId, fromDate);
 
+    // 5. Recreate one consolidated entry per ex_date where the user holds shares
     for (const div of assetDividends) {
       const exDateStr = String(div.ex_date).split("T")[0];
 
-      // Convert dividend amount from asset base currency to buy currency if needed
-      let dividendPerShare: number = div.dividend_amount;
-      if (needsConversion && assetBaseCurrencyId) {
-        try {
-          const exDate = new Date(exDateStr);
-          const forexRate = await this.currenciesRepository.getClosestForexRateBeforeOrAt(
-            assetBaseCurrencyId,
-            buyCurrencyId,
-            exDate
-          );
-          if (forexRate?.forex_rate) {
-            dividendPerShare = div.dividend_amount * forexRate.forex_rate;
-          }
-        }
-        catch {
-          // fallback: use unconverted amount
-        }
-      }
+      const [totalBought, totalSold] = await Promise.all([
+        this.userAssetBuyRepository.sumSharesByCompanyAndDate(portfolioId, companyName, exDateStr),
+        this.userAssetSellRepository.sumSharesByCompanyAndDate(portfolioId, companyName, exDateStr),
+      ]);
+      const netShares = (totalBought || 0) - (totalSold || 0);
 
-      const cashflowAmount = parseFloat((dividendPerShare * shares).toFixed(2));
+      if (netShares <= 0) continue; // Sold all shares before this dividend — skip
+
+      const cashflowAmount = parseFloat((div.dividend_amount * netShares).toFixed(2));
 
       try {
         await this.userAssetDividendRepository.add({
@@ -227,13 +216,21 @@ export class PortfolioService {
           currency_uuid: dividendCurrencyId,
           cashflow_date: exDateStr as unknown as Date,
           cashflow_amount: cashflowAmount,
-          source_buy_uuid: buyId,
+          source_buy_uuid: null, // consolidated — not tied to a single buy
         });
       }
       catch (err) {
-        console.error(`[PortfolioService] failed to auto-create dividend for ex_date ${exDateStr}:`, err instanceof Error ? err.message : String(err));
+        console.error(`[PortfolioService] Failed to create consolidated dividend for ex_date ${exDateStr}:`, err instanceof Error ? err.message : String(err));
       }
     }
+  }
+
+  /** Resolves the asset for a buy/sell by company_name (official_name first, then ticker_name fallback) */
+  private async resolveAssetByCompanyName(companyName: string): Promise<Asset | null> {
+    return (
+      (await this.assetRepository.getAssetFromOfficialName(companyName)) ??
+      (await this.assetRepository.getAssetFromTicker(companyName))
+    );
   }
 
   public async getAvailableShares(portfolioId: string, assetId: string, date: string): Promise<number> {
@@ -321,7 +318,50 @@ export class PortfolioService {
       }
     }
 
-    const assetSell: UserAssetSell = await this.userAssetSellRepository.add(this.portfolioMapper.addAssetSellDtoToEntity(request, companyName));
+    // Auto-compute average buy price (in sell currency) and capital gain on the backend,
+    // so the result is always correct regardless of what the frontend sends.
+    let computedAvgBuyPrice: number | null = null;
+    let computedGain: number | null = null;
+
+    if (request.assetId && request.assetSellShare && request.assetSellShare > 0 && request.assetSellAmount) {
+      try {
+        computedAvgBuyPrice = await this.getAverageBuyPricePerShare(
+          request.portfolioId,
+          request.assetId,
+          request.sellDate,
+          request.sellCurrencyId
+        );
+        if (computedAvgBuyPrice !== null) {
+          const sellPricePerShare = request.assetSellAmount / request.assetSellShare;
+          computedGain = parseFloat(((sellPricePerShare - computedAvgBuyPrice) * request.assetSellShare).toFixed(2));
+        }
+      }
+      catch (err) {
+        console.error("[PortfolioService] Failed to compute sell gain:", err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    const sellEntityData: Partial<UserAssetSell> = {
+      ...this.portfolioMapper.addAssetSellDtoToEntity(request, companyName),
+      average_asset_share_buy_price: computedAvgBuyPrice,
+      asset_sell_gain: computedGain,
+    };
+
+    const assetSell: UserAssetSell = await this.userAssetSellRepository.add(sellEntityData);
+
+    // Recalculate dividends from sell date onwards: shares decreased, some dividends may vanish
+    if (request.assetId && asset && companyName) {
+      await this.recalculateDividendsForAsset(
+        request.portfolioId,
+        request.assetId,
+        asset,
+        companyName,
+        request.sellDate
+      ).catch((err) => {
+        console.error("[PortfolioService] recalculate dividends error (sell):", err instanceof Error ? err.message : String(err));
+      });
+    }
+
     return this.portfolioMapper.assetSellEntityToDto(assetSell);
   }
 
@@ -380,19 +420,48 @@ export class PortfolioService {
   }
 
   public async deleteAssetBuy(buyId: string): Promise<void> {
-    // Delete auto-created dividends linked to this buy before removing the buy itself
-    await this.userAssetDividendRepository.deleteBySourceBuyId(buyId);
+    // Capture buy info before deletion so we can recalculate dividends afterwards
+    const buy = await this.userAssetBuyRepository.getById(buyId);
+    if (!buy) throw new Error("BUY_NOT_FOUND");
 
-    const deleted: boolean = await this.userAssetBuyRepository.remove(buyId);
-    if (!deleted) {
-      throw new Error("BUY_NOT_FOUND");
+    const portfolioId = buy.portfolio_uuid;
+    const companyName = buy.company_name;
+    const buyDate = String(buy.buy_date).split("T")[0];
+
+    // Remove the buy (shares decrease → dividends from buyDate may shrink or vanish)
+    await this.userAssetBuyRepository.remove(buyId);
+
+    // Recalculate consolidated dividends from the buy's date onwards
+    if (companyName) {
+      const asset = await this.resolveAssetByCompanyName(companyName);
+      if (asset) {
+        await this.recalculateDividendsForAsset(portfolioId, asset.uuid, asset, companyName, buyDate).catch((err) => {
+          console.error("[PortfolioService] recalculate dividends error (delete buy):", err instanceof Error ? err.message : String(err));
+        });
+      }
     }
   }
 
   public async deleteAssetSell(sellId: string): Promise<void> {
-    const deleted: boolean = await this.userAssetSellRepository.remove(sellId);
-    if (!deleted) {
-      throw new Error("SELL_NOT_FOUND");
+    // Capture sell info before deletion so we can recalculate dividends afterwards
+    const sell = await this.userAssetSellRepository.getById(sellId);
+    if (!sell) throw new Error("SELL_NOT_FOUND");
+
+    const portfolioId = sell.portfolio_uuid;
+    const companyName = sell.company_name;
+    const sellDate = String(sell.sell_date).split("T")[0];
+
+    // Remove the sell (shares increase → dividends from sellDate may reappear or grow)
+    await this.userAssetSellRepository.remove(sellId);
+
+    // Recalculate consolidated dividends from the sell's date onwards
+    if (companyName) {
+      const asset = await this.resolveAssetByCompanyName(companyName);
+      if (asset) {
+        await this.recalculateDividendsForAsset(portfolioId, asset.uuid, asset, companyName, sellDate).catch((err) => {
+          console.error("[PortfolioService] recalculate dividends error (delete sell):", err instanceof Error ? err.message : String(err));
+        });
+      }
     }
   }
 

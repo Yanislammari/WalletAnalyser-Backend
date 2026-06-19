@@ -2,7 +2,7 @@ export interface AssetBuyResponseDto {
   id: string;
   portfolioId: string;
   companyName: string | null;
-  assetPriceId: string | null;
+  assetId: string | null;
   buyCurrencyId: string;
   buyDate: string;
   assetBuyAmount: number | null;
