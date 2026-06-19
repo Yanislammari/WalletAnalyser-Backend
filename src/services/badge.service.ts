@@ -7,6 +7,9 @@ import { attributesCurrency, attributesPortfolio, attributesUser } from "../db_s
 import { BADGE_RULES, BadgeCreation, UserStats } from "../models/UserStats";
 import { BASE_URL } from "../constants/env";
 import { PortfolioTotalService } from "./portfolio/portfolio.total.service";
+import { UserAssetBuyRepository } from '../repositories/portfolio/user.asset.buy.repository';
+import { UserAssetSellRepository } from '../repositories/portfolio/user.asset.sell.repository';
+import { AssetType } from "../dtos";
 
 export class BadgeService {
   private readonly currencyRepository = new CurrenciesRepository()
@@ -15,6 +18,8 @@ export class BadgeService {
   private readonly userRepository : UserRepository = new UserRepository()
   private readonly portfolioRepository = new PortfolioRepository()
   private readonly portfolioTotalService = new PortfolioTotalService()
+  private readonly userAssetBuyRepository = new UserAssetBuyRepository()
+  private readonly userAssetSellRepository = new UserAssetSellRepository()
   constructor() {}
 
   async getAllBadges(user_id : string) { // return length ( number of total badge ), new, badges, new_badges
@@ -53,7 +58,7 @@ export class BadgeService {
     let numberOfAssetBuy = 0;
     let numberOfAssetsSell = 5;
     let numberOfEtfBuy = 0;
-    let numberOfEtfSell = 1;
+    let numberOfEtfSell = 0;
   
     for(const portfolio of userPortfolios) {
       const currencyId = await this.currencyRepository.get({
@@ -67,9 +72,10 @@ export class BadgeService {
       if(size.totalDividends > amountOfDividend){
         amountOfDividend = size.totalDividends
       }
-      numberOfAssetBuy = 
-      numberOfEtfBuy = 
-      // faire la logique pour le nombre d'asset buy, sell, etf buy, etf sell
+      numberOfAssetBuy += ( await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.STOCKS)).length 
+      numberOfEtfBuy += ( await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.ETF)).length 
+      numberOfAssetsSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.STOCKS)).length 
+      numberOfEtfSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.ETF)).length 
     }
     const stats: UserStats = { 
       hasAccount: true,

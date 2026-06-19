@@ -1,13 +1,13 @@
 import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../../config";
 import { Portfolio } from "./portfolio";
-import { AssetPrice } from "../asset/asset_price";
+import { Asset } from "../asset/asset";
 import { Currency } from "../currencies/currency";
 
 export const attributesUserAssetBuy = {
   uuid: "uuid",
   portfolio_uuid: "portfolio_uuid",
-  asset_price_uuid: "asset_price_uuid",
+  asset_uuid: "asset_uuid",
   buy_currency_uuid: "buy_currency_uuid",
   buy_date: "buy_date",
   asset_buy_amount: "asset_buy_amount",
@@ -20,7 +20,7 @@ export const attributesUserAssetBuy = {
 export class UserAssetBuy extends Model {
   public uuid!: string;
   public portfolio_uuid!: string;
-  public asset_price_uuid!: string | null;
+  public asset_uuid!: string | null;
   public company_name!: string | null;
   public buy_currency_uuid!: string;
   public buy_date!: Date;
@@ -47,11 +47,11 @@ UserAssetBuy.init(
       },
       onDelete: "CASCADE",
     },
-    asset_price_uuid: {
+    asset_uuid: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
-        model: AssetPrice,
+        model: Asset,
         key: "uuid",
       },
     },
@@ -90,7 +90,7 @@ UserAssetBuy.init(
 );
 
 UserAssetBuy.belongsTo(Portfolio, { as: "portfolio", foreignKey: attributesUserAssetBuy.portfolio_uuid });
-UserAssetBuy.belongsTo(AssetPrice, { as: "asset_price", foreignKey: attributesUserAssetBuy.asset_price_uuid });
+UserAssetBuy.belongsTo(Asset, { as: "asset", foreignKey: attributesUserAssetBuy.asset_uuid });
 UserAssetBuy.belongsTo(Currency, { as: "buy_currency", foreignKey: attributesUserAssetBuy.buy_currency_uuid });
 
 Portfolio.hasMany(UserAssetBuy, { foreignKey: "portfolio_uuid", onDelete: "CASCADE", hooks: true });
