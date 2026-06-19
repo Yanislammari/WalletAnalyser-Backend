@@ -41,15 +41,8 @@ async function setUpApi() {
   });
   const badgeService = new BadgeService();
   await badgeService.createAllBadges()
-  /**const excelService = new ExcelService();
+  const excelService = new ExcelService();
   await excelService.addDataFromAdmin();
-
-  const assetClusterRepository = new AssetClusterRepository();
-  const clusters = await assetClusterRepository.get()
-  if(clusters.length == 0){
-    console.log("No clusters found, creating prod model...")
-    fetch(`${PYTHON_BASE_URL}create-prod-model`)
-  }
 
   const assetClusterRepository = new AssetClusterRepository();
   const clusters = await assetClusterRepository.get()
@@ -65,7 +58,7 @@ async function setUpApi() {
   const startupSyncService = new StartupSyncService();
   startupSyncService.syncAll().catch((err) => {
     console.error("[StartupSync] Unhandled error:", err instanceof Error ? err.message : String(err));
-  });**/
+  });
 }
 
 setUpApi();
