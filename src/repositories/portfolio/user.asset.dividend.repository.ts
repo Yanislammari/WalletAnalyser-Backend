@@ -41,4 +41,14 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
   public async deleteBySourceBuyId(buyId: string): Promise<void> {
     await this.model.destroy({ where: { source_buy_uuid: buyId } });
   }
+
+  public async deleteByPortfolioAndAssetFromDate(portfolioId: string, assetId: string, fromDate: string): Promise<void> {
+    await this.model.destroy({
+      where: {
+        portfolio_uuid: portfolioId,
+        asset_uuid: assetId,
+        cashflow_date: { [Op.gte]: fromDate },
+      },
+    });
+  }
 }
