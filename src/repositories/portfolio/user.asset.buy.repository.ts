@@ -1,7 +1,7 @@
 import { Op } from "sequelize";
 import { attributesUserAssetBuy, UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { AssetPrice } from "../../db_schema/asset/asset_price";
-import { Asset } from "../../db_schema";
+import { Asset, attributesAsset } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 import { AssetType } from "../../dtos";
 
@@ -88,10 +88,11 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
 
   public async getBuysType(portfolioId : string, type : AssetType): Promise<UserAssetBuy[]> {
     return await this.model.findAll({
-      where : { [ attributesUserAssetBuy.portfolio_uuid] : portfolioId},
+      where : { [attributesUserAssetBuy.portfolio_uuid] : portfolioId},
       include : [{
         model: Asset,
         as: "asset",
+        where : { [attributesAsset.asset_type] : type }
       }]
     })
   }

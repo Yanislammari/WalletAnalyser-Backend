@@ -50,9 +50,9 @@ export class BadgeService {
     });
     let max = 0;
     let amountOfDividend = 0;
-    let numberOfAssetBuy = 10;
+    let numberOfAssetBuy = 0;
     let numberOfAssetsSell = 5;
-    let numberOfEtfBuy = 3;
+    let numberOfEtfBuy = 0;
     let numberOfEtfSell = 1;
   
     for(const portfolio of userPortfolios) {
@@ -67,7 +67,8 @@ export class BadgeService {
       if(size.totalDividends > amountOfDividend){
         amountOfDividend = size.totalDividends
       }
-      // mock
+      numberOfAssetBuy = 
+      numberOfEtfBuy = 
       // faire la logique pour le nombre d'asset buy, sell, etf buy, etf sell
     }
     const stats: UserStats = { 
@@ -166,7 +167,7 @@ export class BadgeService {
             return LevelBadge.ADVANCED
           } else if (s.amountOfDividend > 50) {
             return LevelBadge.INTERMEDIATE
-          } else if (s.amountOfDividend > 10) {
+          } else if (s.amountOfDividend > 3) {
             return LevelBadge.BEGINNER
           }
           return null
