@@ -3,10 +3,12 @@ import { Asset, attributesAsset, attributesAssetCluster, attributesPortfolio, Co
 import { AssetRepository, PortfolioRepository, SectorRepository } from "../../repositories";
 import { AssetClusterRepository } from "../../repositories/asset/asset_cluster.repository";
 import { AssetType } from "../../dtos";
+import { AssetPriceRepository } from '../../repositories/asset/asset_price.repository';
 
 export class AssetClusterService {
   private readonly assetClusterRepository = new AssetClusterRepository()
   private readonly assetRepository = new AssetRepository()
+  private readonly assetPriceRepository = new AssetPriceRepository()
   private readonly sectorRepository = new SectorRepository()
   private readonly portfolioRepository = new PortfolioRepository()
   constructor() {}
@@ -14,10 +16,17 @@ export class AssetClusterService {
   async getPerf(asset_uuid : string){
     const todayPrice = 100;
     const lastYearPrice = Math.floor(Math.random() * 200 )+ 1;
-
     if (todayPrice <= 0 || lastYearPrice <= 0) return null;
-
     return ((lastYearPrice - todayPrice) / todayPrice)
+    /**const now = new Date();
+    const oneYearAgo = new Date(now);
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const todayPrice = await this.assetPriceRepository.getAssetPriceAtDate(asset_uuid, now);
+    const lastYearPrice = await this.assetPriceRepository.getAssetPriceAtDate(asset_uuid, oneYearAgo);
+
+    if (todayPrice == null || lastYearPrice == null || todayPrice.asset_price <= 0 || lastYearPrice.asset_price <= 0) return null;
+
+    return ((lastYearPrice.asset_price - todayPrice.asset_price) / todayPrice.asset_price)**/
   }
 
   async getSectorSummary(){
@@ -102,7 +111,7 @@ export class AssetClusterService {
     return result;
   }
 
-  private async getRankInSector(asset: Asset): Promise<{asset : Asset, rank : string, perf : number, rank_position : number}> {
+  private async getRankInSector(asset: Asset): Promise<{asset : Asset, rank : string, perf : number, rank_position : number} | null> {
     const sectorAssets = await this.assetRepository.get({
       where: { [attributesAsset.sector_uuid]: asset.sector_uuid },
       attributes : [attributesAsset.uuid]
@@ -116,6 +125,10 @@ export class AssetClusterService {
       })
     )).filter((item) => item !== null);
 
+    if(assetsPerfs.length == 0) {
+      return null
+    }
+
     assetsPerfs.sort((a,b) => b.perf - a.perf)
 
     const position = assetsPerfs.findIndex(a => a.uuid === asset.uuid) + 1;
@@ -128,9 +141,7 @@ export class AssetClusterService {
     };
   }
 
-  async getUserStocksSummary(user_id : string) {
-    const portfolios = await this.portfolioRepository.get({where : { [attributesPortfolio.user_uuid] : user_id}})
-    
+  async getUserStocksSummary(portfolio_id : string) {
     //mock assets
     const msft = await this.assetRepository.getAssetFromTicker("MSFT")
     const unh = await this.assetRepository.getAssetFromTicker("UNH")
@@ -151,7 +162,7 @@ export class AssetClusterService {
   }
 
   private async getDetailsWholeSector(assets : Asset[]) {
-    const assetsPerfs = (await Promise.all(
+    const assetsPerfs = (await Promise.all( // add country, sector, cluster_position
       assets.map(async (asset) => {
         const perf = await this.getPerf(asset.uuid);
         if (perf == null) return null;

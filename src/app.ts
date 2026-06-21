@@ -18,7 +18,7 @@ import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
-import { createVerifyTokenMiddleware } from "./middleware/token";
+import { createVerifyTokenAdminMiddleware, createVerifyTokenMiddleware } from "./middleware/token";
 import ClusterRoutes from "./routes/asset_cluster.routes";
 import { PYTHON_BASE_URL } from "./constants/env";
 import { AssetClusterRepository } from "./repositories/asset/asset_cluster.repository";
@@ -96,14 +96,14 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
-app.use("/sector",SectorsRoutes());
-app.use("/country",CountriesRoutes());
-app.use("/portfolio", PortfolioRoutes());
-app.use("/currency", CurrencyRoutes());
-app.use("/badges", BadgeRoutes());
+app.use("/sector",createVerifyTokenMiddleware(), SectorsRoutes());
+app.use("/country", createVerifyTokenMiddleware(), CountriesRoutes());
+app.use("/portfolio", createVerifyTokenMiddleware(), PortfolioRoutes());
+app.use("/currency", createVerifyTokenMiddleware(), CurrencyRoutes());
+app.use("/badges", createVerifyTokenMiddleware(), BadgeRoutes());
 app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
-app.use("/import", ImportRoutes());
-app.use("/asset", AssetRoutes());
+app.use("/import", createVerifyTokenMiddleware(), ImportRoutes());
+app.use("/asset", createVerifyTokenMiddleware(), AssetRoutes());
 
 export default app;

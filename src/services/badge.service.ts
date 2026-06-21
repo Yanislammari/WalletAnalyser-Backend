@@ -56,7 +56,7 @@ export class BadgeService {
     let max = 0;
     let amountOfDividend = 0;
     let numberOfAssetBuy = 0;
-    let numberOfAssetsSell = 5;
+    let numberOfAssetsSell = 0;
     let numberOfEtfBuy = 0;
     let numberOfEtfSell = 0;
   
@@ -77,6 +77,7 @@ export class BadgeService {
       numberOfAssetsSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.STOCKS)).length 
       numberOfEtfSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.ETF)).length 
     }
+    
     const stats: UserStats = { 
       hasAccount: true,
       portfolioValue : max,
