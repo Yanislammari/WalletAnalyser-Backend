@@ -11,6 +11,7 @@ const ClusterRoutes = (): Router => {
   router.get("/user_stocks/:portfolio_id", async (req, res) => assetClusterController.getUserStocksSummary(req , res));
   router.get("/sector_detail", async(req, res) => assetClusterController.getGlobalRankingType(req,res))
   router.get("/name/:sector_uuid", async(req, res) => assetClusterController.getSectorName(req,res))
+  router.get("/country_name/:country_uuid", async(req, res) => assetClusterController.getCountryName(req,res))
 
   return router;
 };

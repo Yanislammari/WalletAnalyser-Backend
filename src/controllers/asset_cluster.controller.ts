@@ -93,6 +93,17 @@ class AssetClusterController {
       return res.status(500).json({ message: "Internal server error" });
     }
   }
+
+  public async getCountryName(req : Request, res : Response): Promise<Response> {
+    try {
+      const country_uuid = req.params.country_uuid as string;
+      const response = await this.assetClusterService.getCountryName(country_uuid)
+      return res.status(200).json({countryName : response});
+    } catch (error) {
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
 }
 
 export default AssetClusterController;

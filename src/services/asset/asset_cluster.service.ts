@@ -21,7 +21,7 @@ export class AssetClusterService {
     const todayPrice = 100;
     const lastYearPrice = Math.floor(Math.random() * 200 )+ 1;
     if (todayPrice <= 0 || lastYearPrice <= 0) return null;
-    return ((lastYearPrice - todayPrice) / todayPrice)
+    return ((lastYearPrice - todayPrice) / todayPrice) * 100
     /**const now = new Date();
     const oneYearAgo = new Date(now);
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -53,9 +53,9 @@ export class AssetClusterService {
       if (existing) {
         existing.totalPerf += perf;
         existing.count += 1;
-        existing.assets.push({ asset, perf: perf * 100});
+        existing.assets.push({ asset, perf: perf});
       } else {
-        sectorMap.set(sector_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf * 100  }] });
+        sectorMap.set(sector_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf }] });
       }
     }
 
@@ -66,7 +66,7 @@ export class AssetClusterService {
         return {
           sector,
           length: count,
-          mean_perf: (totalPerf / count) * 100,
+          mean_perf: (totalPerf / count),
           best_performers: sorted.slice(0, 3),
           worst_performers: sorted.slice(-3),
         };
@@ -91,10 +91,10 @@ export class AssetClusterService {
         existing.totalPerf += perf;
         existing.count += 1;
         const asset = assetCluster.asset
-        existing.assets.push({ asset, perf: perf * 100 });
+        existing.assets.push({ asset, perf: perf });
       } else {
         const asset = assetCluster.asset
-        clusterMap.set(cluster_id, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf * 100  }] });
+        clusterMap.set(cluster_id, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf  }] });
       }
     }
 
@@ -104,7 +104,7 @@ export class AssetClusterService {
         return {
           unique_key,
           length: count,
-          mean_perf: ((totalPerf / count) * 100),
+          mean_perf: totalPerf / count,
           best_performers: sorted.slice(0, 3),
           worst_performers: sorted.slice(-3),
         };
@@ -135,9 +135,9 @@ export class AssetClusterService {
       if (existing) {
         existing.totalPerf += perf;
         existing.count += 1;
-        existing.assets.push({ asset, perf: perf * 100});
+        existing.assets.push({ asset, perf: perf});
       } else {
-        countryMap.set(country_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf * 100  }] });
+        countryMap.set(country_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf }] });
       }
     }
 
@@ -148,7 +148,7 @@ export class AssetClusterService {
         return {
           country,
           length: count,
-          mean_perf: (totalPerf / count) * 100,
+          mean_perf: totalPerf / count,
           best_performers: sorted.slice(0, 3),
           worst_performers: sorted.slice(-3),
         };
@@ -286,5 +286,10 @@ export class AssetClusterService {
   async getSectorName(sector_uuid : string){
     const sector = await this.sectorRepository.getById(sector_uuid)
     return sector?.sector_name ?? "Unknown Sector"
+  }
+
+  async getCountryName(country_uuid : string){
+    const country = await this.countryRepository.getById(country_uuid)
+    return country?.country_name ?? "Unknown country"
   }
 }
