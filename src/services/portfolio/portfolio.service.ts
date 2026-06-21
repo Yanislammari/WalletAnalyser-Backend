@@ -17,7 +17,7 @@ import { PaginatedResponseDto } from "../../dtos/common/paginated.response.dto";
 import AssetCountResponse from "../../dtos/portfolio/responses/asset.count.response";
 import { Portfolio } from "../../db_schema/portfolio/portfolio";
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
-import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
+import { UserAssetSell } from '../../db_schema/portfolio/user_asset_sell';
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
 import { Asset, AssetDividend } from "../../db_schema";
 import { YahooFinanceService } from "../yahoo.finance.service";
@@ -470,5 +470,29 @@ export class PortfolioService {
     if (!deleted) {
       throw new Error("DIVIDEND_NOT_FOUND");
     }
+  }
+
+  public async holdingsInPortfolio(portfolioId: string) {
+    const userAssetBuy = await this.userAssetBuyRepository.getAllByPortfolioId(portfolioId)
+    const userAssetSell = await this.userAssetSellRepository.getAllByPortfolioId(portfolioId)
+
+    const balances = new Map<string, number>()
+
+    for (const buy of userAssetBuy) {
+      if(!buy.asset_uuid || !buy.asset_buy_amount) continue
+      const current = balances.get(buy.asset_uuid) ?? 0
+      balances.set(buy.asset_uuid, current + buy.asset_buy_amount)
+    }
+
+    for (const sell of userAssetSell) {
+      if(!sell.asset_uuid || !sell.asset_sell_amount) continue
+      const current = balances.get(sell.asset_uuid) ?? 0
+      balances.set(sell.asset_uuid, current - sell.asset_sell_amount)
+    }
+
+    return Array.from(balances.entries()).map(([assetId, amount]) => ({
+      assetId,
+      amount,
+    }))
   }
 }

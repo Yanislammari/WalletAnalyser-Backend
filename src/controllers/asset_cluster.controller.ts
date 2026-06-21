@@ -1,6 +1,12 @@
 import { Request, Response } from "express";
 import { AssetClusterService } from "../services/asset/asset_cluster.service";
 
+export enum RankingType {
+  COUNTRIES = "countries",
+  CLUSTERS = "clusters",
+  SECTORS = "sectors",
+}
+
 class AssetClusterController {
   private readonly assetClusterService: AssetClusterService;
 
@@ -30,10 +36,21 @@ class AssetClusterController {
     }
   }
 
+  public async getCountriesSummary(req: Request, res : Response): Promise<Response> {
+    try {
+      const response = await this.assetClusterService.getCountriesSummary();
+      return res.status(200).json({sectorsData : response});
+    }
+    catch (error) {
+      console.log(error)
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async getUserStocksSummary(req : Request, res : Response): Promise<Response> {
     try {
       const { portfolio_id } = req.params;
-      let response = {}
+      let response = null
       if(portfolio_id){
         response = await this.assetClusterService.getUserStocksSummary(portfolio_id as string);
       }
@@ -45,15 +62,17 @@ class AssetClusterController {
     }
   }
 
-  public async getSectorsDetails(req : Request, res : Response): Promise<Response> {
+  public async getGlobalRankingType(req : Request, res : Response): Promise<Response> {
     try {
       const type = req.query.type as string;
-      const sector_uuid = req.query.sector_uuid as string;
+      const uuid = req.query.uuid as string;
       let response;
-      if(type == 'sector'){
-        response = await this.assetClusterService.getSectorDetails(sector_uuid)
-      } else if(type == 'cluster'){
-        response = await this.assetClusterService.getClusterDetails(sector_uuid)
+      if(type == RankingType.SECTORS){
+        response = await this.assetClusterService.getSectorDetails(uuid)
+      } else if(type == RankingType.CLUSTERS){
+        response = await this.assetClusterService.getClusterDetails(uuid)
+      } else if(type == RankingType.COUNTRIES) {
+        response = await this.assetClusterService.getCountriesDetails(uuid)
       } else {
         throw Error("NO_TYPE")
       }
