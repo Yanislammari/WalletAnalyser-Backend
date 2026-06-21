@@ -7,6 +7,7 @@ export interface ForexMetaData {
 
 export interface ForexListMetaData {
   forex_list: ForexMetaData[];
+  length : number;
 }
 
 export interface ForexListMessage {
