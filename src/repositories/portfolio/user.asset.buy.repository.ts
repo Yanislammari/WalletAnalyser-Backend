@@ -50,11 +50,18 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
   }
 
-  public async getBuysByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<UserAssetBuy[]> {
+  public async getBuysByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string, assetId?: string): Promise<UserAssetBuy[]> {
+    // When assetId is provided, match by either company_name OR asset_uuid so that buys
+    // stored with a stale/null company_name are still found via the asset UUID fallback.
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
     return this.model.findAll({
       where: {
         portfolio_uuid: portfolioId,
-        company_name: companyName,
+        ...companyFilter,
         buy_date: { [Op.lte]: upToDate },
         asset_buy_share: { [Op.ne]: null },
         asset_buy_price_per_share: { [Op.ne]: null },
@@ -63,12 +70,34 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     });
   }
 
-  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<number> {
+  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
     const total = await this.model.sum("asset_buy_share", {
       where: {
         portfolio_uuid: portfolioId,
-        company_name: companyName,
+        ...companyFilter,
         buy_date: { [Op.lte]: upToDate },
+        asset_buy_share: { [Op.ne]: null },
+      },
+    });
+    return total || 0;
+  }
+
+  public async sumSharesByCompanyAfterDate(portfolioId: string, companyName: string, afterDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
+    const total = await this.model.sum("asset_buy_share", {
+      where: {
+        portfolio_uuid: portfolioId,
+        ...companyFilter,
+        buy_date: { [Op.gt]: afterDate },
         asset_buy_share: { [Op.ne]: null },
       },
     });

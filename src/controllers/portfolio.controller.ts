@@ -6,6 +6,9 @@ import { AddPortfolioRequestDto } from "../dtos/portfolio/requests/add.portfolio
 import { AddAssetBuyRequestDto } from "../dtos/portfolio/requests/add.asset.buy.request.dto";
 import { AddAssetSellRequestDto } from "../dtos/portfolio/requests/add.asset.sell.request.dto";
 import { AddAssetDividendRequestDto } from "../dtos/portfolio/requests/add.asset.dividend.request.dto";
+import { UpdateAssetBuyRequestDto } from "../dtos/portfolio/requests/update.asset.buy.request.dto";
+import { UpdateAssetSellRequestDto } from "../dtos/portfolio/requests/update.asset.sell.request.dto";
+import { UpdateAssetDividendRequestDto } from "../dtos/portfolio/requests/update.asset.dividend.request.dto";
 import { AssetBuyResponseDto, AssetDividendResponseDto, AssetSellResponseDto, PortfolioResponseDto } from "../dtos";
 import { PaginatedResponseDto } from "../dtos/common/paginated.response.dto";
 import AssetCountResponse from "../dtos/portfolio/responses/asset.count.response";
@@ -177,7 +180,8 @@ class PortfolioController {
       const limit: number = parseInt(req.query.limit as string) || 10;
       const from: string | undefined = req.query.from as string | undefined;
       const to: string | undefined = req.query.to as string | undefined;
-      const response: PaginatedResponseDto<AssetDividendResponseDto> = await this.portfolioService.getDividendsByPortfolioId(portfolioId, page, limit, from, to);
+      const company: string | undefined = req.query.company as string | undefined;
+      const response: PaginatedResponseDto<AssetDividendResponseDto> = await this.portfolioService.getDividendsByPortfolioId(portfolioId, page, limit, from, to, company);
       return res.status(200).json(response);
     }
     catch (error) {
@@ -226,6 +230,44 @@ class PortfolioController {
       if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
         return res.status(404).json({ message: "Portfolio not found" });
       }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async updateAssetBuy(req: Request, res: Response): Promise<Response> {
+    try {
+      const buyId = req.params.buyId as string;
+      const dto: UpdateAssetBuyRequestDto = req.body;
+      const response = await this.portfolioService.updateAssetBuy(buyId, dto);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "BUY_NOT_FOUND") return res.status(404).json({ message: "Buy not found" });
+      if (error instanceof Error && error.message === "INSUFFICIENT_SHARES_FOR_EXISTING_SELLS") return res.status(422).json({ message: "INSUFFICIENT_SHARES_FOR_EXISTING_SELLS" });
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async updateAssetSell(req: Request, res: Response): Promise<Response> {
+    try {
+      const sellId = req.params.sellId as string;
+      const dto: UpdateAssetSellRequestDto = req.body;
+      const response = await this.portfolioService.updateAssetSell(sellId, dto);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "SELL_NOT_FOUND") return res.status(404).json({ message: "Sell not found" });
+      if (error instanceof Error && error.message === "INSUFFICIENT_SHARES") return res.status(422).json({ message: "INSUFFICIENT_SHARES" });
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async updateAssetDividend(req: Request, res: Response): Promise<Response> {
+    try {
+      const dividendId = req.params.dividendId as string;
+      const dto: UpdateAssetDividendRequestDto = req.body;
+      const response = await this.portfolioService.updateAssetDividend(dividendId, dto);
+      return res.status(200).json(response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "DIVIDEND_NOT_FOUND") return res.status(404).json({ message: "Dividend not found" });
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -313,6 +355,7 @@ class PortfolioController {
   public async getMetrics(req: Request, res: Response): Promise<Response> {
     try {
       const portfolioId: string = req.params.portfolioId as string;
+      const fromDate: string | undefined = req.query.fromDate as string | undefined;
       const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
       const currencyId = portfolio.displayCurrencyId;
 
@@ -320,7 +363,18 @@ class PortfolioController {
         return res.status(400).json({ message: "Portfolio has no base currency set." });
       }
 
-      const response: MetricResponseDto = await this.metricService.getMetrics(portfolioId, currencyId);
+      // Fetch current market value of held positions (all-time view only).
+      // For filtered views (fromDate set), positions bought outside the window
+      // would skew the MTM calculation, so we skip it.
+      let portfolioMarketValue: number | undefined;
+      if (!fromDate) {
+        try {
+          const total = await this.portfolioTotalService.getPortfolioTotal(portfolioId, currencyId);
+          if (total.portfolioMarketValue > 0) portfolioMarketValue = total.portfolioMarketValue;
+        } catch { /* non-critical — metrics still work without it */ }
+      }
+
+      const response: MetricResponseDto = await this.metricService.getMetrics(portfolioId, currencyId, fromDate, portfolioMarketValue);
       return res.status(200).json(response);
     }
     catch (error) {

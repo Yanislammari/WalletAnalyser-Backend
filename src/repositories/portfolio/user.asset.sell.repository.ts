@@ -50,12 +50,30 @@ export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
   }
 
-  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<number> {
+  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId, company_name: null }] }
+      : { company_name: companyName };
     const total = await this.model.sum("asset_sell_share", {
       where: {
         portfolio_uuid: portfolioId,
-        company_name: companyName,
+        ...companyFilter,
         sell_date: { [Op.lte]: upToDate },
+        asset_sell_share: { [Op.ne]: null },
+      },
+    });
+    return total || 0;
+  }
+
+  public async sumSharesByCompanyAfterDate(portfolioId: string, companyName: string, afterDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId, company_name: null }] }
+      : { company_name: companyName };
+    const total = await this.model.sum("asset_sell_share", {
+      where: {
+        portfolio_uuid: portfolioId,
+        ...companyFilter,
+        sell_date: { [Op.gt]: afterDate },
         asset_sell_share: { [Op.ne]: null },
       },
     });

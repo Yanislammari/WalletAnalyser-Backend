@@ -5,16 +5,19 @@ import { AssetResponseDto } from "../dtos/asset/responses/asset.response.dto";
 import { AssetPriceResponseDto } from "../dtos/asset/responses/asset.price.response.dto";
 import { AssetDatabaseModel } from "../models";
 import { EtfPatchAssetPayload, EtfPostHolding } from "../dtos";
+import { YahooFinanceService } from "../services/yahoo.finance.service";
 import path from "path";
 import fs from "fs"
 
 class AssetController {
   private readonly assetService: AssetService;
   private readonly etfService : EtfService;
+  private readonly yahooFinanceService: YahooFinanceService;
 
   constructor() {
     this.assetService = new AssetService();
     this.etfService = new  EtfService();
+    this.yahooFinanceService = new YahooFinanceService();
   }
 
   // Returns a flat Asset[] array — used by the frontend AssetService.getAssets()
@@ -261,6 +264,39 @@ class AssetController {
       }
       return res.status(200).json({ message: "Asset deleted successfully" });
     } catch (error) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /**
+   * GET /asset/benchmark?ticker=^GSPC&from=2020-01-01
+   * Returns monthly closing prices for the given ticker, suitable for normalization.
+   */
+  public async getBenchmarkHistory(req: Request, res: Response): Promise<Response> {
+    try {
+      const ticker = req.query.ticker as string | undefined;
+      if (!ticker) return res.status(400).json({ message: "ticker is required" });
+
+      const fromParam = req.query.from as string | undefined;
+      const fromDate  = fromParam ? new Date(fromParam) : new Date(Date.now() - 10 * 365.25 * 24 * 3600 * 1000);
+      const toDate    = new Date();
+
+      const daily = await this.yahooFinanceService.fetchHistoricalData(ticker, fromDate, toDate);
+      if (daily.length === 0) return res.status(200).json([]);
+
+      // Aggregate to monthly: keep the last trading-day price of each month
+      const monthMap = new Map<string, number>();
+      for (const { date, price } of daily) {
+        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthMap.set(month, price); // overwrites → last entry wins
+      }
+
+      const result = Array.from(monthMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, price]) => ({ month, price }));
+
+      return res.status(200).json(result);
+    } catch {
       return res.status(500).json({ message: "Internal server error" });
     }
   }

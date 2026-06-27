@@ -8,6 +8,7 @@ export const attributesUserAssetBuy = {
   uuid: "uuid",
   portfolio_uuid: "portfolio_uuid",
   asset_uuid: "asset_uuid",
+  company_name: "company_name",
   buy_currency_uuid: "buy_currency_uuid",
   buy_date: "buy_date",
   asset_buy_amount: "asset_buy_amount",

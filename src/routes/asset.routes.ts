@@ -7,6 +7,7 @@ const AssetRoutes = (): Router => {
 
   router.get("/", (req, res) => assetController.getAll(req, res));
   router.get("/preview", (req, res) => assetController.previewCustomAsset(req, res));
+  router.get("/benchmark", (req, res) => assetController.getBenchmarkHistory(req, res));
   router.post("/custom", (req, res) => assetController.createCustomAsset(req, res));
   router.get("/:assetId/price", (req, res) => assetController.getPrice(req, res));
 

@@ -20,6 +20,9 @@ const PortfolioRoutes = (): Router => {
   router.post("/:portfolioId/sells", (req, res) => portfolioController.addAssetSell(req, res));
   router.get("/:portfolioId/dividends", (req, res) => portfolioController.getDividendsByPortfolioId(req, res));
   router.post("/:portfolioId/dividends", (req, res) => portfolioController.addAssetDividend(req, res));
+  router.patch("/:portfolioId/buys/:buyId", (req, res) => portfolioController.updateAssetBuy(req, res));
+  router.patch("/:portfolioId/sells/:sellId", (req, res) => portfolioController.updateAssetSell(req, res));
+  router.patch("/:portfolioId/dividends/:dividendId", (req, res) => portfolioController.updateAssetDividend(req, res));
   router.delete("/:portfolioId", (req, res) => portfolioController.deletePortfolio(req, res));
   router.delete("/:portfolioId/buys/:buyId", (req, res) => portfolioController.deleteAssetBuy(req, res));
   router.delete("/:portfolioId/sells/:sellId", (req, res) => portfolioController.deleteAssetSell(req, res));
