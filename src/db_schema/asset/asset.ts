@@ -4,6 +4,7 @@ import { Currency } from "../currencies/currency";
 import { Sector } from "../sector/sector";
 import { Country } from '../country/country';
 import { AssetType } from "../../dtos";
+import { AssetCluster } from "./asset_cluster";
 
 export const attributesAsset = {
   uuid: "uuid",
@@ -29,6 +30,7 @@ export class Asset extends Model {
   public country_uuid!: string;
   public country! : Country
   public sector! : Sector
+  public cluster! : AssetCluster
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }

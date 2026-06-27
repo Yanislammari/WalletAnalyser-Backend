@@ -2,6 +2,12 @@ import { LevelBadge } from "../db_schema";
 
 export interface UserStats {
   hasAccount : boolean
+  numberOfAssetSell : number
+  numberOfAssetBuy : number
+  numberOfETFSell : number
+  numberOfETFBuy : number
+  portfolioValue : number
+  amountOfDividend : number
 }
 
 export interface BadgeRule {

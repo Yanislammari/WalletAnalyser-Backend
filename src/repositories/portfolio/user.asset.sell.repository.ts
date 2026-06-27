@@ -1,7 +1,8 @@
 import { Op } from "sequelize";
-import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
-import { Asset } from "../../db_schema";
+import { attributesUserAssetSell, UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
+import { Asset, attributesAsset } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
+import { AssetType } from "../../dtos";
 
 export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
   constructor() {
@@ -87,5 +88,16 @@ export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
       group: ["company_name"],
     });
     return results.map((r) => r.company_name as string);
+  }
+
+  public async getSellsType(portfolioId : string, type : AssetType): Promise<UserAssetSell[]> {
+    return await this.model.findAll({
+      where : { [attributesUserAssetSell.portfolio_uuid] : portfolioId},
+      include : [{
+        model: Asset,
+        as: "asset",
+        where : { [attributesAsset.asset_type] : type }
+      }]
+    })
   }
 }

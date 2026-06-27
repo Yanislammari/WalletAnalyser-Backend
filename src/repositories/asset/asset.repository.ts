@@ -1,7 +1,8 @@
 import { Op } from "sequelize";
-import { Asset, attributesAsset, Country, Sector } from "../../db_schema";
+import { Asset, AssetCluster, attributesAsset, attributesAssetCluster, attributesCountry, attributesSector, Country, Sector } from "../../db_schema";
 import { AssetDatabaseModel } from "../../models";
 import { BaseRepository } from "../base.repository";
+import { AssetType } from "../../dtos";
 
 export class AssetRepository extends BaseRepository<Asset> {
   constructor() {
@@ -263,33 +264,68 @@ export class AssetRepository extends BaseRepository<Asset> {
   async getAssetsFull(asset_uuid : string): Promise<Asset | null>{
     const result = await Asset.findOne({
       where : { [attributesAsset.uuid] : asset_uuid},
+      attributes : [attributesAsset.uuid, attributesAsset.asset_type, attributesAsset.ticker_name, attributesAsset.display_name, attributesAsset.sector_uuid, attributesAsset.country_uuid],
       include : [
         {
           model : Sector,
           as : "sector",
+          attributes : [attributesSector.uuid, attributesSector.sector_name]
         },
         {
           model : Country,
-          as : "country"
+          as : "country",
+          attributes : [attributesCountry.uuid, attributesCountry.country_name]
+        },
+        {
+          model : AssetCluster,
+          as : "cluster",
+          attributes : [attributesAssetCluster.asset_uuid, attributesAssetCluster.cluster]
         }
       ]
     })
     return result
   }
 
-  async assetFullPerSector(sector_uuid : string): Promise<Asset[]>{
-    return await Asset.findAll({
-      where : {[attributesAsset.sector_uuid] : sector_uuid},
-      include : [
-        {
-          model: Sector,
-          as : "sector"
+  async getAssetsOfSector(sector_uuid : string): Promise<Asset[]>{
+    return await Asset.findAll({ where : {[attributesAsset.sector_uuid] : sector_uuid }})
+  }
+
+  async getAssetsOfCountry(country_uuid : string): Promise<Asset[]> {
+    return await Asset.findAll({ where : {[attributesAsset.country_uuid] : country_uuid }})
+  }
+
+  async getAllAssetOfSector() {
+    return await this.model.findAll({
+        where : {
+          [attributesAsset.sector_uuid] : {[Op.not] : null},
+          [attributesAsset.asset_type] : AssetType.STOCKS
         },
-        {
-          model : Country,
-          as : "country"
-        }
-      ]
+        attributes : [attributesAsset.uuid, attributesAsset.sector_uuid],
+    })
+  }
+
+  async getAllAssetOfCountry() {
+    return await this.model.findAll({
+      where : {
+        [attributesAsset.country_uuid] : {[Op.not] : null},
+        [attributesAsset.asset_type] : AssetType.STOCKS
+      },
+      attributes : [attributesAsset.uuid, attributesAsset.country_uuid ]
+    })
+  }
+
+  async getAssetOfCluster(asset_uuid : string) {
+    return await this.model.findOne({
+      where : {
+        [attributesAsset.uuid] : asset_uuid,
+        [attributesAsset.asset_type] : AssetType.STOCKS
+      },
+      attributes : [attributesAsset.uuid ],
+      include : [{
+        model : AssetCluster,
+        as : "cluster",
+        attributes : [attributesAssetCluster.cluster]
+      }]
     })
   }
 }
