@@ -1,4 +1,5 @@
-import { SECRET_KEY } from "../constants/env";
+import { SECRET_KEY, MJ_SENDER } from "../constants/env";
+import { MailjetService } from "./mailjet.service";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
 import { store2FA } from "../config/store";
@@ -21,12 +22,14 @@ export class AuthService {
   private readonly userMapper: UserMapper;
   private readonly googleOAuthService: GoogleOAuthService;
   private readonly mailSendingService: MailSendingService;
+  private readonly mailjetService: MailjetService;
 
   constructor() {
     this.userRepository = new UserRepository();
     this.userMapper = new UserMapper();
     this.googleOAuthService = new GoogleOAuthService();
     this.mailSendingService = new MailSendingService();
+    this.mailjetService = new MailjetService();
   }
 
   hashedCode = (code : string) => {
@@ -215,6 +218,46 @@ export class AuthService {
       }
       throw new Error("RESET_PASSWORD_FAILED");
     }
+  }
+
+  public async updateProfile(userId: string, data: { firstName?: string; lastName?: string; email?: string; currentPassword?: string; newPassword?: string }): Promise<UserResponseDto> {
+    const user = await this.userRepository.getById(userId);
+    if (!user) throw new Error("USER_NOT_FOUND");
+
+    const updates: Record<string, any> = {};
+
+    if (data.email && data.email !== user.email) {
+      const existing = await this.userRepository.getByEmail(data.email);
+      if (existing) throw new Error("EMAIL_ALREADY_EXISTS");
+      updates.email = data.email;
+    }
+    if (data.firstName) updates.first_name = data.firstName;
+    if (data.lastName) updates.last_name = data.lastName;
+
+    if (data.newPassword) {
+      if (!data.currentPassword) throw new Error("CURRENT_PASSWORD_REQUIRED");
+      const isMatch = await bcrypt.compare(data.currentPassword, user.password ?? "");
+      if (!isMatch) throw new Error("WRONG_PASSWORD");
+      const salt = await bcrypt.genSalt(SALT_ROUNDS);
+      updates.password = await bcrypt.hash(data.newPassword, salt);
+    }
+
+    await this.userRepository.update(userId, updates);
+    const updated = await this.userRepository.getById(userId);
+    return this.userMapper.userEntityToUserResponseDto(updated!);
+  }
+
+  public async sendContactEmail(fromUser: User, subject: string, message: string): Promise<void> {
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:auto">
+        <h2>Support request from ${fromUser.first_name} ${fromUser.last_name}</h2>
+        <p><strong>From:</strong> ${fromUser.email}</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <hr/>
+        <p style="white-space:pre-wrap">${message}</p>
+      </div>
+    `;
+    await this.mailjetService.sendEmail(MJ_SENDER, `[WalletAnalyser Support] ${subject}`, html);
   }
 
   public async changePassword(password: string, newPassword : string, uuid: string): Promise<void> {

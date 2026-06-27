@@ -2,7 +2,7 @@ import { Router } from "express";
 import AuthController from "../controllers/auth.controller";
 import { RegisterSchema } from "../validators/register.validator";
 import { ValidatorMiddleware } from "../middleware/validator.middleware";
-import { createVerifyTokenAdminMiddleware } from "../middleware/token";
+import { createVerifyTokenAdminMiddleware, createVerifyTokenMiddleware } from "../middleware/token";
 
 const AuthRoutes = (): Router => {
   const router: Router = Router();
@@ -22,6 +22,8 @@ const AuthRoutes = (): Router => {
   router.post("/send-activate-account-email", async (req, res) => authController.sendActivateAccountEmail(req, res));
   router.post("/activate-account", async (req, res) => authController.activateAccount(req, res));
   router.post("/verify-token-admin", async (req, res) => authController.verifyTokenAdmin(req, res));
+  router.patch("/profile", createVerifyTokenMiddleware(), (req, res) => authController.updateProfile(req, res));
+  router.post("/contact", createVerifyTokenMiddleware(), (req, res) => authController.sendContact(req, res));
 
   return router;
 };

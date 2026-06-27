@@ -118,6 +118,20 @@ export class PortfolioService {
 
     const assetBuy: UserAssetBuy = await this.userAssetBuyRepository.add(this.portfolioMapper.addAssetBuyDtoToEntity(request, companyName));
 
+    // Recalculate average buy price and gain on all sells of this asset
+    // that fall on or after the new buy date — adding a buy changes the WACO
+    // for every subsequent sell.
+    if (request.assetId && companyName) {
+      await this.recalculateSellsFromDate(
+        request.portfolioId,
+        request.assetId,
+        companyName,
+        request.buyDate
+      ).catch((err) => {
+        console.error("[PortfolioService] recalculate sells error (addBuy):", err instanceof Error ? err.message : String(err));
+      });
+    }
+
     // Recalculate all consolidated dividend entries for this asset from the buy date onwards.
     if (request.assetId && asset && companyName) {
       await this.recalculateDividendsForAsset(
@@ -227,6 +241,51 @@ export class PortfolioService {
       catch (err) {
         console.error(`[PortfolioService] Failed to create consolidated dividend for ex_date ${exDateStr}:`, err instanceof Error ? err.message : String(err));
       }
+    }
+  }
+
+  /**
+   * Recalculates average_asset_share_buy_price and asset_sell_gain for every sell of
+   * this asset whose sell_date >= fromDate.
+   *
+   * Called after addAssetBuy so that inserting a new buy correctly updates
+   * the weighted-average cost (WACO) of all affected downstream sells.
+   */
+  private async recalculateSellsFromDate(
+    portfolioId: string,
+    assetId: string,
+    companyName: string,
+    fromDate: string
+  ): Promise<void> {
+    const allSells = await this.userAssetSellRepository.getAllByPortfolioId(portfolioId);
+
+    // Keep only sells of this asset on or after fromDate
+    const affectedSells = allSells
+      .filter(s =>
+        ((companyName && s.company_name === companyName) || (assetId && s.asset_uuid === assetId)) &&
+        String(s.sell_date).split("T")[0] >= fromDate
+      )
+      .sort((a, b) => String(a.sell_date).localeCompare(String(b.sell_date)));
+
+    for (const sell of affectedSells) {
+      const sellDate       = String(sell.sell_date).split("T")[0];
+      const effectiveAsset = assetId ?? sell.asset_uuid;
+      if (!sell.asset_sell_share || !effectiveAsset) continue;
+
+      const avgBuy = await this.getAverageBuyPricePerShare(
+        portfolioId, effectiveAsset, sellDate, sell.sell_currency_uuid
+      );
+
+      let gain: number | null = null;
+      if (avgBuy !== null && sell.asset_sell_amount) {
+        const pricePerShare = sell.asset_sell_amount / sell.asset_sell_share;
+        gain = parseFloat(((pricePerShare - avgBuy) * sell.asset_sell_share).toFixed(2));
+      }
+
+      await this.userAssetSellRepository.update(sell.uuid, {
+        average_asset_share_buy_price: avgBuy,
+        asset_sell_gain: gain,
+      });
     }
   }
 
