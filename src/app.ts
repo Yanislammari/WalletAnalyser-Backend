@@ -8,6 +8,7 @@ import { ExcelService, AuthService } from "./services";
 import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
 import { StartupSyncService } from "./services/startup/startup.sync.service";
 import AuthRoutes from "./routes/auth.routes";
+import SubscriptionRoutes from "./routes/subscription.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
@@ -70,6 +71,9 @@ app.use(
   })
 );
 
+// Stripe webhook must receive raw body — mount BEFORE express.json()
+app.use("/subscription/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
@@ -96,11 +100,12 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
-app.use("/sector",createVerifyTokenMiddleware(), SectorsRoutes());
-app.use("/country", createVerifyTokenMiddleware(), CountriesRoutes());
-app.use("/portfolio", createVerifyTokenMiddleware(), PortfolioRoutes());
-app.use("/currency", createVerifyTokenMiddleware(), CurrencyRoutes());
-app.use("/badges", createVerifyTokenMiddleware(), BadgeRoutes());
+app.use("/subscription", SubscriptionRoutes());
+app.use("/sector",SectorsRoutes());
+app.use("/country",CountriesRoutes());
+app.use("/portfolio", PortfolioRoutes());
+app.use("/currency", CurrencyRoutes());
+app.use("/badges", BadgeRoutes());
 app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
 app.use("/import", createVerifyTokenMiddleware(), ImportRoutes());

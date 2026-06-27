@@ -137,25 +137,67 @@ export class AssetService {
     if (!asset) throw new Error("ASSET_NOT_FOUND");
 
     const targetDate: Date = new Date(date);
-    let assetPrice: AssetPrice | null = await this.assetPriceRepository.getClosestPriceBeforeOrAt(assetId, targetDate);
-    if (!assetPrice) {
-      assetPrice = await this.assetPriceRepository.getLatestAssetPrice(assetId);
+
+    // 1. Try DB first
+    const assetPrice: AssetPrice | null = await this.assetPriceRepository.getClosestPriceBeforeOrAt(assetId, targetDate);
+
+    // Only trust the DB price if it falls within 7 days before the target date.
+    // A price stored further back is likely the only record in DB (e.g., a stale
+    // live-quote cached for a different date) and would return the same wrong value
+    // for all subsequent dates that fall after it.
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const priceIsCloseEnough = assetPrice != null &&
+      (targetDate.getTime() - new Date(assetPrice.asset_price_date).getTime()) <= SEVEN_DAYS_MS;
+
+    if (priceIsCloseEnough) {
+      return {
+        price: assetPrice!.asset_price,
+        date:  new Date(assetPrice!.asset_price_date).toISOString().split("T")[0],
+      };
     }
 
-    // For custom assets with no historical data yet, fall back to live Yahoo price
-    if (!assetPrice && asset.ticker_name) {
+    // 2. Not in DB or too stale — fetch historical price from Yahoo Finance for this date.
+    //    Look back up to 7 days to handle weekends / market holidays.
+    if (asset.ticker_name) {
+      const lookbackStart = new Date(targetDate);
+      lookbackStart.setDate(lookbackStart.getDate() - 7);
+      // Add 1 day to period2 so Yahoo includes targetDate itself
+      const periodEnd = new Date(targetDate);
+      periodEnd.setDate(periodEnd.getDate() + 1);
+
+      const rows = await this.yahooFinanceService.fetchHistoricalData(asset.ticker_name, lookbackStart, periodEnd);
+      if (rows.length > 0) {
+        // Take the closest row at or before targetDate
+        const closest = rows
+          .filter((r) => r.date <= targetDate)
+          .sort((a, b) => b.date.getTime() - a.date.getTime())[0] ?? rows[rows.length - 1];
+
+        // Cache in DB so future requests for this specific date are instant
+        await this.assetPriceRepository.bulkCreatePrices([{
+          asset_uuid:       assetId,
+          asset_price_date: closest.date,
+          asset_price:      closest.price,
+        }]).catch(() => { /* ignore duplicate key errors */ });
+
+        return {
+          price: closest.price,
+          date:  closest.date.toISOString().split("T")[0],
+        };
+      }
+
+      // 3. No historical data at all → fall back to live quote (new/illiquid assets)
       const quote = await this.yahooFinanceService.fetchAssetQuote(asset.ticker_name);
       if (!quote || quote.price == null) return null;
       return {
         price: quote.price,
-        date: new Date().toISOString().split("T")[0],
+        date:  new Date().toISOString().split("T")[0],
       };
     }
 
     if (!assetPrice) return null;
     return {
       price: assetPrice.asset_price,
-      date: assetPrice.asset_price_date.toISOString().split("T")[0],
+      date:  new Date(assetPrice.asset_price_date).toISOString().split("T")[0],
     };
   }
 

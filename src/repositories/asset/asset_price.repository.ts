@@ -38,6 +38,19 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
     }
   }
 
+  /** Returns the earliest stored price for an asset (to detect missing historical backfill). */
+  async getOldestPrice(assetUuid: string): Promise<AssetPrice | null> {
+    try {
+      return await AssetPrice.findOne({
+        where: { [attributesAssetPrice.asset_uuid]: assetUuid },
+        order: [[attributesAssetPrice.asset_price_date, "ASC"]],
+      });
+    }
+    catch (error) {
+      throw error;
+    }
+  }
+
   async getLatestAssetPrice(assetUuid: string): Promise<AssetPrice | null> {
     try {
       const latestPrice = await AssetPrice.findOne({
