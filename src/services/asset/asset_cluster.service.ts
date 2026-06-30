@@ -76,10 +76,10 @@ export class AssetClusterService {
 
   async getSectorSummary(){
     const perfs = await this.getCachedPerfAll();
-    perfs.filter((item) => item.asset.asset_type == AssetType.STOCKS && !item.asset.sector_uuid)
+    const filteredPerfs = perfs.filter((item) => item.asset.asset_type == AssetType.STOCKS && item.asset.sector_uuid && item.perf != null);
     const sectorMap = new Map<string, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
 
-    for (const { asset, perf } of perfs) {
+    for (const { asset, perf } of filteredPerfs) {
       const sector_uuid = asset.sector_uuid;
       const existing = sectorMap.get(sector_uuid);
       if (existing) {
@@ -110,15 +110,11 @@ export class AssetClusterService {
   }
 
   async getClusterSummary(){
-    const assetsCluster = await this.assetClusterRepository.getAllAssetClusters()
-    const assetsFull = (await Promise.all(
-      assetsCluster.map(cluster => this.assetRepository.getAssetsFull(cluster.asset_uuid))
-    )).filter(item => item != null);
-    const perfs = await this.getPerfAll(assetsFull)
+    const perfs = await this.getCachedPerfAll()
+    const filteredPerfs = perfs.filter((item) => item.asset.cluster?.cluster != null && item.perf != null);
     const clusterMap = new Map<number, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
-    for (const { asset, perf } of perfs) {
+    for (const { asset, perf } of filteredPerfs) {
       const cluster_id = asset.cluster.cluster;
-      if(perf == null) continue
 
       const existing = clusterMap.get(cluster_id);
       if (existing) {
@@ -149,12 +145,11 @@ export class AssetClusterService {
 
   async getCountriesSummary(){
     const perfs = await this.getCachedPerfAll()
-    perfs.filter(item => item.asset.country_uuid)
+    const filteredPerfs = perfs.filter(item => item.asset.country_uuid && item.perf != null)
     const countryMap = new Map<string, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
 
-    for (const {asset, perf } of perfs) {
+    for (const {asset, perf } of filteredPerfs) {
       const country_uuid = asset.country_uuid;
-      if(perf == null || !country_uuid) continue
 
       const existing = countryMap.get(country_uuid);
       if (existing) {
@@ -184,9 +179,11 @@ export class AssetClusterService {
   }
 
   private async getRankInAny(assets: Asset[]): Promise<RankAsset[] | null> {
-    const allAssets = await this.assetRepository.getAllAssetsFull(); 
+    const allPerfs = await this.getCachedPerfAll();
+    const targetUuids = new Set(assets.map(a => a.uuid));
+    const filteredPerfs = allPerfs.filter(item => targetUuids.has(item.asset.uuid));
 
-    const allPerfs = await this.getPerfAll(allAssets);
+    if (filteredPerfs.length === 0) return null;
     const perfByUuid = new Map(allPerfs.map(({ asset, perf }) => [asset.uuid, { asset, perf }]));
 
     const buildRankLookup = <K>(
@@ -199,6 +196,13 @@ export class AssetClusterService {
 
       items.sort((a, b) => b.perf - a.perf);
 
+      const groupSizes = new Map<K, number>();
+      for (const item of items) {
+        const key = keyFn(item.asset);
+        if (key == null) continue;
+        groupSizes.set(key, (groupSizes.get(key) ?? 0) + 1);
+      }
+
       const rankByUuid = new Map<string, { rank: number; position: string }>();
       const runningRank = new Map<K, number>();
       for (const item of items) {
@@ -206,23 +210,19 @@ export class AssetClusterService {
         if (key == null) continue;
         const rank = (runningRank.get(key) ?? 0) + 1;
         runningRank.set(key, rank);
-        rankByUuid.set(item.asset.uuid, { rank, position: `${rank}/${items.length}` });
+        const total = groupSizes.get(key)!;
+        rankByUuid.set(item.asset.uuid, { rank, position: `${rank}/${total}` });
       }
       return rankByUuid;
     };
 
-    const sectorRanks = buildRankLookup(allAssets, (a) => a.sector_uuid);
-    const countryRanks = buildRankLookup(allAssets, (a) => a.country_uuid);
-    const clusterRanks = buildRankLookup(allAssets, (a) => a.cluster?.cluster ?? null);
+    const sectorRanks = buildRankLookup(allPerfs.map((p) => p.asset), (a) => a.sector_uuid);
+    const countryRanks = buildRankLookup(allPerfs.map((p) => p.asset), (a) => a.country_uuid);
+    const clusterRanks = buildRankLookup(allPerfs.map((p) => p.asset), (a) => a.cluster?.cluster ?? null);
 
-    const assetsPerfs = assets
-      .map((asset) => perfByUuid.get(asset.uuid))
-      .filter((item): item is { asset: Asset; perf: number } => item != null);
+    filteredPerfs.sort((a, b) => b.perf - a.perf);
 
-    if (assetsPerfs.length === 0) return null;
-    assetsPerfs.sort((a, b) => b.perf - a.perf);
-
-    return assetsPerfs.map((item) => {
+    return filteredPerfs.map((item) => {
       const sector = sectorRanks.get(item.asset.uuid) ?? { rank: null, position: null };
       const country = countryRanks.get(item.asset.uuid) ?? { rank: null, position: null };
       const cluster = clusterRanks.get(item.asset.uuid) ?? { rank: null, position: null };
