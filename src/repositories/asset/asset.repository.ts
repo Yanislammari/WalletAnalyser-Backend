@@ -286,6 +286,30 @@ export class AssetRepository extends BaseRepository<Asset> {
     return result
   }
 
+  async getAllAssetsFull(): Promise<Asset[]>{
+    const result = await Asset.findAll({
+      attributes : [attributesAsset.uuid, attributesAsset.asset_type, attributesAsset.ticker_name, attributesAsset.display_name, attributesAsset.sector_uuid, attributesAsset.country_uuid],
+      include : [
+        {
+          model : Sector,
+          as : "sector",
+          attributes : [attributesSector.uuid, attributesSector.sector_name]
+        },
+        {
+          model : Country,
+          as : "country",
+          attributes : [attributesCountry.uuid, attributesCountry.country_name]
+        },
+        {
+          model : AssetCluster,
+          as : "cluster",
+          attributes : [attributesAssetCluster.asset_uuid, attributesAssetCluster.cluster]
+        }
+      ]
+    })
+    return result
+  }
+
   async getAssetsOfSector(sector_uuid : string): Promise<Asset[]>{
     return await Asset.findAll({ where : {[attributesAsset.sector_uuid] : sector_uuid }})
   }

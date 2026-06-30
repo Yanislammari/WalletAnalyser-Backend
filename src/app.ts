@@ -105,7 +105,7 @@ app.use("/sector",SectorsRoutes());
 app.use("/country",CountriesRoutes());
 app.use("/portfolio", PortfolioRoutes());
 app.use("/currency", CurrencyRoutes());
-app.use("/badges", BadgeRoutes());
+app.use("/badges", createVerifyTokenMiddleware(), BadgeRoutes());
 app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
 app.use("/import", createVerifyTokenMiddleware(), ImportRoutes());

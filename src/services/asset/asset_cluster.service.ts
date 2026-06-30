@@ -6,7 +6,6 @@ import { AssetType } from "../../dtos";
 import { AssetPriceRepository } from '../../repositories/asset/asset_price.repository';
 import { PortfolioService } from "../portfolio/portfolio.service";
 import { RankAsset } from "../../dtos/asset/ranking/rank";
-import { sl } from "zod/locales";
 
 export class AssetClusterService {
   private readonly assetClusterRepository = new AssetClusterRepository()
@@ -17,83 +16,116 @@ export class AssetClusterService {
   private readonly portfolioService = new PortfolioService()
   constructor() {}
 
-  async getPerf(asset_uuid : string){
-    const todayPrice = 100;
-    const lastYearPrice = Math.floor(Math.random() * 200 )+ 1;
-    if (todayPrice <= 0 || lastYearPrice <= 0) return null;
-    return ((lastYearPrice - todayPrice) / todayPrice) * 100
-    /**const now = new Date();
+  private perfCache: { asset: Asset; perf: number }[] | null = null;
+  private perfCacheTimestamp: number = 0;
+  private readonly PERF_CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+
+  private async getPerfAll(assets: Asset[]) {
+    if (assets.length === 0) return [];
+
+    const now = new Date();
     const oneYearAgo = new Date(now);
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const todayPrice = await this.assetPriceRepository.getAssetPriceAtDate(asset_uuid, now);
-    const lastYearPrice = await this.assetPriceRepository.getAssetPriceAtDate(asset_uuid, oneYearAgo);
 
-    if (todayPrice == null || lastYearPrice == null || todayPrice.asset_price <= 0 || lastYearPrice.asset_price <= 0) return null;
+    const uuids = assets.map(a => a.uuid);
 
-    return ((lastYearPrice.asset_price - todayPrice.asset_price) / todayPrice.asset_price)**/
+    const [todayPrices, lastYearPrices] = await Promise.all([
+      this.assetPriceRepository.getClosestPricesBeforeOrAtBulk(uuids, now),
+      this.assetPriceRepository.getClosestPricesBeforeOrAtBulk(uuids, oneYearAgo),
+    ]);
+
+    const todayMap = new Map(todayPrices.map(p => [p.asset_uuid, p]));
+    const lastYearMap = new Map(lastYearPrices.map(p => [p.asset_uuid, p]));
+
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const results: { asset: Asset; perf: number }[] = [];
+
+    for (const asset of assets) {
+      const todayPrice = todayMap.get(asset.uuid);
+      const lastYearPrice = lastYearMap.get(asset.uuid);
+
+      if (todayPrice == null || lastYearPrice == null) continue;
+      if (todayPrice.asset_price <= 0 || lastYearPrice.asset_price <= 0) continue;
+
+      const todayDiff = Math.abs(now.getTime() - new Date(todayPrice.asset_price_date).getTime());
+      const lastYearDiff = Math.abs(oneYearAgo.getTime() - new Date(lastYearPrice.asset_price_date).getTime());
+
+      if (todayDiff > ONE_WEEK_MS || lastYearDiff > ONE_WEEK_MS) continue;
+      
+      const perf = ((todayPrice.asset_price - lastYearPrice.asset_price) / lastYearPrice.asset_price) * 100;
+      results.push({ asset, perf });
+    }
+
+    return results;
+  }
+
+  private async getCachedPerfAll(): Promise<{ asset: Asset; perf: number }[]> {
+    const now = Date.now();
+    if (this.perfCache && (now - this.perfCacheTimestamp) < this.PERF_CACHE_TTL_MS) {
+      return this.perfCache;
+    }
+
+    const allAssets = await this.assetRepository.getAllAssetsFull();
+    const perfs = await this.getPerfAll(allAssets);
+    perfs.sort((a, b) => b.perf - a.perf);
+
+    this.perfCache = perfs;
+    this.perfCacheTimestamp = now;
+    return perfs;
   }
 
   async getSectorSummary(){
-    const allAssets = await this.assetRepository.get({
-        where : {
-          [attributesAsset.sector_uuid] : {[Op.not] : null},
-          [attributesAsset.asset_type] : AssetType.STOCKS
-        }
-    },
-      [attributesAsset.uuid, attributesAsset.display_name, attributesAsset.sector_uuid]
-    )
+    const perfs = await this.getCachedPerfAll();
+    perfs.filter((item) => item.asset.asset_type == AssetType.STOCKS && !item.asset.sector_uuid)
     const sectorMap = new Map<string, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
 
-    for (const asset of allAssets) {
+    for (const { asset, perf } of perfs) {
       const sector_uuid = asset.sector_uuid;
-      const perf = await this.getPerf(asset.uuid)
-      if(perf == null) continue
-
       const existing = sectorMap.get(sector_uuid);
       if (existing) {
         existing.totalPerf += perf;
         existing.count += 1;
-        existing.assets.push({ asset, perf: perf});
+        existing.assets.push({ asset, perf });
       } else {
-        sectorMap.set(sector_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf }] });
+        sectorMap.set(sector_uuid, { totalPerf: perf, count: 1, assets: [{ asset, perf }] });
       }
     }
 
     const result = await Promise.all(
       Array.from(sectorMap.entries()).map(async ([unique_key, { totalPerf, count, assets }]) => {
         const sector = await this.sectorRepository.getById(unique_key);
-        const sorted = assets.sort((a, b) => b.perf - a.perf); 
+        const sorted = assets.sort((a, b) => b.perf - a.perf);
         return {
           sector,
           length: count,
-          mean_perf: (totalPerf / count),
+          mean_perf: totalPerf / count,
           best_performers: sorted.slice(0, 3),
           worst_performers: sorted.slice(-3),
         };
       })
     );
-    result.sort((a,b) => b.mean_perf - a.mean_perf)
+    result.sort((a, b) => b.mean_perf - a.mean_perf);
 
     return result;
   }
 
   async getClusterSummary(){
     const assetsCluster = await this.assetClusterRepository.getAllAssetClusters()
+    const assetsFull = (await Promise.all(
+      assetsCluster.map(cluster => this.assetRepository.getAssetsFull(cluster.asset_uuid))
+    )).filter(item => item != null);
+    const perfs = await this.getPerfAll(assetsFull)
     const clusterMap = new Map<number, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
-
-    for (const assetCluster of assetsCluster) {
-      const cluster_id = assetCluster.cluster;
-      const perf = await this.getPerf(assetCluster.uuid)
+    for (const { asset, perf } of perfs) {
+      const cluster_id = asset.cluster.cluster;
       if(perf == null) continue
 
       const existing = clusterMap.get(cluster_id);
       if (existing) {
         existing.totalPerf += perf;
         existing.count += 1;
-        const asset = assetCluster.asset
         existing.assets.push({ asset, perf: perf });
       } else {
-        const asset = assetCluster.asset
         clusterMap.set(cluster_id, { totalPerf: perf, count: 1, assets: [{ asset, perf: perf  }] });
       }
     }
@@ -116,20 +148,13 @@ export class AssetClusterService {
   }
 
   async getCountriesSummary(){
-    const allAssets = await this.assetRepository.get({
-        where : {
-          [attributesAsset.country_uuid] : {[Op.not] : null},
-          [attributesAsset.asset_type] : AssetType.STOCKS
-        }
-    },
-      [attributesAsset.uuid, attributesAsset.display_name, attributesAsset.country_uuid]
-    )
+    const perfs = await this.getCachedPerfAll()
+    perfs.filter(item => item.asset.country_uuid)
     const countryMap = new Map<string, { totalPerf: number; count: number; assets: { asset: Asset; perf: number }[] }>();
 
-    for (const asset of allAssets) {
+    for (const {asset, perf } of perfs) {
       const country_uuid = asset.country_uuid;
-      const perf = await this.getPerf(asset.uuid)
-      if(perf == null) continue
+      if(perf == null || !country_uuid) continue
 
       const existing = countryMap.get(country_uuid);
       if (existing) {
@@ -158,38 +183,49 @@ export class AssetClusterService {
     return result;
   }
 
-  private async getPerfAll(assets:Asset[]) {
-    return (await Promise.all(
-      assets.map(async (asset) => {
-        const perf = await this.getPerf(asset.uuid);
-        if (perf == null) return null;
-        return { asset, perf};
-      })
-    )).filter((item) => item !== null);
-  }
-
   private async getRankInAny(assets: Asset[]): Promise<RankAsset[] | null> {
-    const assetsSectors = await this.assetRepository.getAllAssetOfSector();
-    const assetsCountries = await this.assetRepository.getAllAssetOfCountry();
-    const clusters = await this.assetClusterRepository.getAllAssetClusters();
-    const assetsCluster = (await Promise.all(
-      clusters.map((cluster) => this.assetRepository.getAssetOfCluster(cluster.asset_uuid))
-    )).filter((item) => item != null);
+    const allAssets = await this.assetRepository.getAllAssetsFull(); 
 
-    const assetsPerfs = await this.getPerfAll(assets);
-    if (assetsPerfs.length == 0) return null;
-    assetsPerfs.sort((a,b) => b.perf - a.perf)
+    const allPerfs = await this.getPerfAll(allAssets);
+    const perfByUuid = new Map(allPerfs.map(({ asset, perf }) => [asset.uuid, { asset, perf }]));
 
-    const [sectorGroups, countryGroups, clusterGroups] = await Promise.all([
-      this.buildRankGroups(assetsSectors, (a) => a.sector_uuid),
-      this.buildRankGroups(assetsCountries, (a) => a.country_uuid),
-      this.buildRankGroups(assetsCluster, (a) => a.cluster?.cluster ?? null),
-    ]);
+    const buildRankLookup = <K>(
+      universeAssets: Asset[],
+      keyFn: (asset: Asset) => K | null | undefined
+    ): Map<string, { rank: number; position: string }> => {
+      const items = universeAssets
+        .map((asset) => perfByUuid.get(asset.uuid))
+        .filter((item): item is { asset: Asset; perf: number } => item != null);
+
+      items.sort((a, b) => b.perf - a.perf);
+
+      const rankByUuid = new Map<string, { rank: number; position: string }>();
+      const runningRank = new Map<K, number>();
+      for (const item of items) {
+        const key = keyFn(item.asset);
+        if (key == null) continue;
+        const rank = (runningRank.get(key) ?? 0) + 1;
+        runningRank.set(key, rank);
+        rankByUuid.set(item.asset.uuid, { rank, position: `${rank}/${items.length}` });
+      }
+      return rankByUuid;
+    };
+
+    const sectorRanks = buildRankLookup(allAssets, (a) => a.sector_uuid);
+    const countryRanks = buildRankLookup(allAssets, (a) => a.country_uuid);
+    const clusterRanks = buildRankLookup(allAssets, (a) => a.cluster?.cluster ?? null);
+
+    const assetsPerfs = assets
+      .map((asset) => perfByUuid.get(asset.uuid))
+      .filter((item): item is { asset: Asset; perf: number } => item != null);
+
+    if (assetsPerfs.length === 0) return null;
+    assetsPerfs.sort((a, b) => b.perf - a.perf);
 
     return assetsPerfs.map((item) => {
-      const sector = this.getRankAndPosition(sectorGroups, item.asset.sector_uuid, item);
-      const country = this.getRankAndPosition(countryGroups, item.asset.country_uuid, item);
-      const cluster = this.getRankAndPosition(clusterGroups, item.asset.cluster?.cluster, item);
+      const sector = sectorRanks.get(item.asset.uuid) ?? { rank: null, position: null };
+      const country = countryRanks.get(item.asset.uuid) ?? { rank: null, position: null };
+      const cluster = clusterRanks.get(item.asset.uuid) ?? { rank: null, position: null };
 
       return {
         asset: item.asset,
@@ -204,44 +240,8 @@ export class AssetClusterService {
     });
   }
 
-  // Fetches perfs for a universe, sorts by perf desc, and groups by key
-  private async buildRankGroups<K>(
-    universeAssets: Asset[],
-    keyFn: (asset: Asset) => K | null | undefined
-  ): Promise<Map<K, { asset: Asset; perf: number }[]>> {
-    const perfs = await this.getPerfAll(universeAssets);
-    perfs.sort((a, b) => b.perf - a.perf);
-
-    const groups = new Map<K, { asset: Asset; perf: number }[]>();
-    for (const item of perfs) {
-      const key = keyFn(item.asset);
-      if (key == null) continue;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(item);
-    }
-    return groups;
-  }
-
-  // Looks up an item's rank within its group, returns null-safe rank + "x/y" position
-  private getRankAndPosition<K, T extends { asset: Asset }>(
-    groups: Map<K, T[]>,
-    key: K | null | undefined,
-    item: T
-  ): { rank: number | null; position: string | null } {
-    if (key == null) return { rank: null, position: null };
-    const group = groups.get(key);
-    if (!group) return { rank: null, position: null };
-
-    const idx = group.findIndex((g) => g.asset.uuid === item.asset.uuid);
-    if (idx === -1) return { rank: null, position: null };
-
-    const rank = idx + 1;
-    return { rank, position: `${rank}/${group.length}` };
-  }
-
   async getUserStocksSummary(portfolio_id : string) {
-    const holdings = await this.portfolioService.holdingsInPortfolio(portfolio_id)
-    
+    const holdings = await this.portfolioService.holdingsInPortfolio(portfolio_id)   
     const assetsFull = await Promise.all(
       holdings.map(holding => this.assetRepository.getAssetsFull(holding.assetId))
     );
