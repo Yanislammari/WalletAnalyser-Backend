@@ -37,7 +37,7 @@ export class AssetClusterService {
     const todayMap = new Map(todayPrices.map(p => [p.asset_uuid, p]));
     const lastYearMap = new Map(lastYearPrices.map(p => [p.asset_uuid, p]));
 
-    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const ONE_WEEK_MS = 14 * 24 * 60 * 60 * 1000;
     const results: { asset: Asset; perf: number }[] = [];
 
     for (const asset of assets) {
