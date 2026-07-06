@@ -1,6 +1,7 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import { AssetPrice, attributesAssetPrice } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
+import {sequelize} from "../../config/db";
 
 export class AssetPriceRepository extends BaseRepository<AssetPrice> {
   constructor() {
@@ -66,6 +67,24 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
       console.error("Error fetching the latest asset price from the database:", error);
       throw error;
     }
+  }
+
+  
+  async getClosestPricesBeforeOrAtBulk(asset_uuids: string[], targetDate: Date) {
+    const results = await sequelize.query(
+      `
+      SELECT DISTINCT ON (asset_uuid) asset_uuid, asset_price, asset_price_date
+      FROM "AssetPrices"
+      WHERE asset_uuid IN (:asset_uuids)
+        AND asset_price_date <= :targetDate
+      ORDER BY asset_uuid, asset_price_date DESC
+      `,
+      {
+        replacements: { asset_uuids, targetDate },
+        type: QueryTypes.SELECT,
+      }
+    );
+    return results as { asset_uuid: string; asset_price: number; asset_price_date: string }[];
   }
 
   async bulkCreatePrices(records: Array<{ asset_uuid: string; asset_price_date: Date; asset_price: number }>): Promise<void> {
