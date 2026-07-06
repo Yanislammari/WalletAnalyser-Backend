@@ -13,7 +13,7 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
   const token = (req.headers["authorization"] as string)?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Access Denied: No token provided." });
+    return res.status(401).json({ message: "Access Denied: No token provided.", type : "NO_AUTH" });
   }
 
   try {
@@ -24,9 +24,9 @@ const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
       return next();
     }
 
-    return res.status(401).json({ message: "Access Denied: Invalid user." }); //fail case
+    return res.status(401).json({ message: "Access Denied: Invalid user.", type : "NO_AUTH" }); //fail case
   } catch (e) {
-    return res.status(400).json({ message: "Invalid token." });
+    return res.status(400).json({ message: "Invalid token.", type : "NO_AUTH" });
   }
 };
 
@@ -34,7 +34,7 @@ const verifyTokenAdmin = async (req: Request, res: Response, next: NextFunction)
   const token = (req.headers["authorization"] as string)?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Your session has expired. Please login again." });
+    return res.status(401).json({ message: "Your session has expired. Please login again.", type : "NO_AUTH" });
   }
 
   try {
@@ -45,9 +45,9 @@ const verifyTokenAdmin = async (req: Request, res: Response, next: NextFunction)
       return next();
     }
 
-    return res.status(401).json({ message: "Your session has expired. Please login again." }); //fail case
+    return res.status(401).json({ message: "Your session has expired. Please login again.", type : "NO_AUTH" }); //fail case
   } catch (e) {
-    return res.status(400).json({ message: "Your session has expired. Please login again." });
+    return res.status(400).json({ message: "Your session has expired. Please login again.", type : "NO_AUTH" });
   }
 };
 

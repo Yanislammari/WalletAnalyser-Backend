@@ -165,51 +165,56 @@ export class YahooFinanceService {
   }
 
   public async fetchHistoricalData(ticker: string, from: Date, to: Date): Promise<Array<{ date: Date; price: number }>> {
-    // Yahoo Finance chart() API (replacement for removed historical()) returns lowercase field names
-    type RawRow = { date?: Date; adjclose?: number; adjClose?: number; close?: number };
+    // Use chart() directly — historical() relied on a Yahoo API that has been removed.
+    // chart() returns { quotes: [{ date, open, high, low, close, volume, adjclose }] }
+    type ChartQuote = { date?: Date; adjclose?: number | null; close?: number | null };
 
-    const parseRows = (raw: unknown[]): Array<{ date: Date; price: number }> =>
-      (raw as RawRow[])
-        .filter((row) => row.date != null && (row.adjclose != null || row.adjClose != null || row.close != null))
-        .map((row) => ({ date: row.date!, price: row.adjclose ?? row.adjClose ?? row.close ?? 0 }));
+    const extractQuotes = (result: unknown): Array<{ date: Date; price: number }> => {
+      const quotes: ChartQuote[] = (result as { quotes?: ChartQuote[] })?.quotes ?? [];
+      return quotes
+        .filter((q) => q.date != null && (q.adjclose != null || q.close != null))
+        .map((q) => ({ date: q.date!, price: q.adjclose ?? q.close ?? 0 }));
+    };
 
     try {
-      const rows = await this.yahooFinance.historical(ticker, {
+      const result = await (this.yahooFinance as any).chart(ticker, {
         period1: from,
         period2: to,
         interval: "1d",
-      });
-      return parseRows(rows as unknown[]);
+      }, { validateResult: false });
+      const quotes = extractQuotes(result);
+      if (quotes.length === 0) {
+        console.warn(`[YahooFinance] chart() returned 0 quotes for ${ticker} — result keys: ${result ? Object.keys(result) : 'null'}, quotes field: ${JSON.stringify(result?.quotes?.slice(0,1))}`);
+      }
+      return quotes;
     }
     catch (err: unknown) {
+      // chart() throws with .result when schema validation fails — still use the data
       const validationErr = err as { result?: unknown };
       if (validationErr.result != null) {
-        const raw: unknown[] = Array.isArray(validationErr.result)
-          ? (validationErr.result as unknown[])
-          : [validationErr.result];
-        return parseRows(raw);
+        const quotes = extractQuotes(validationErr.result);
+        console.log(`[YahooFinance] chart() validation error for ${ticker} but recovered ${quotes.length} quotes from err.result`);
+        return quotes;
       }
       const errMsg = err instanceof Error ? err.message : String(err);
-      // Suppress noisy expected errors: delisted/not-found tickers and period overlap
-      if (!errMsg.includes("No data found") && !errMsg.includes("period1 and period2")) {
-        console.error(`YahooFinanceService.fetchHistoricalData error for ${ticker}:`, errMsg);
-      }
+      console.error(`[YahooFinance] chart() FAILED for ${ticker}: [${(err as any)?.constructor?.name}] ${errMsg}`);
       return [];
     }
   }
 
   public async fetchHistoricalDividends(ticker: string, from: Date, to: Date): Promise<Array<{ date: Date; dividends: number }>> {
-    const parseRows = (raw: unknown[]): Array<{ date: Date; dividends: number }> => {
-      return (raw as Array<{ date?: Date; dividends?: number }>)
+    // historical() with events:"dividends" still works (chart() events path is less stable).
+    // Disable schema validation so a null currency field doesn't block dividend extraction.
+    const parseRows = (raw: unknown[]): Array<{ date: Date; dividends: number }> =>
+      (raw as Array<{ date?: Date; dividends?: number }>)
         .filter((row) => row.date != null && row.dividends != null && row.dividends > 0) as Array<{ date: Date; dividends: number }>;
-    };
 
     try {
       const rows = await this.yahooFinance.historical(ticker, {
         period1: from,
         period2: to,
         events: "dividends",
-      });
+      }, { validateResult: false } as any);
       return parseRows(rows as unknown[]);
     }
     catch (err: unknown) {
@@ -221,7 +226,6 @@ export class YahooFinanceService {
         return parseRows(raw);
       }
       const errMsg = err instanceof Error ? err.message : String(err);
-      // Suppress noisy expected errors: delisted/not-found tickers and period overlap
       if (!errMsg.includes("No data found") && !errMsg.includes("period1 and period2")) {
         console.error(`YahooFinanceService.fetchHistoricalDividends error for ${ticker}:`, errMsg);
       }

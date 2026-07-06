@@ -165,7 +165,7 @@ export class AssetService {
       assetPrice = await this.assetPriceRepository.getLatestAssetPrice(assetId);
     }
 
-    if (!assetPrice && asset.is_custom && asset.ticker_name) {
+    if (!assetPrice && asset.ticker_name) {
       const quote = await this.yahooFinanceService.fetchAssetQuote(asset.ticker_name);
       if (!quote || quote.price == null) return null;
       return {

@@ -4,8 +4,6 @@ import { ForexListMetaData } from "../../dtos/currencies/forex";
 import path from "path";
 import fs from "fs"
 
-import { DateService, ExcelService } from "../../services";
-
 class ForexController {
   private readonly forexService: ForexService;
 
@@ -31,9 +29,11 @@ class ForexController {
 
   public async getAllForex(req: Request, res: Response): Promise<Response> {
     try {
-      const response = await this.forexService.getAllForex();
-      const forexList: ForexListMetaData = { forex_list: response };
-      return res.status(200).json(forexList);
+      const limit = Number(req.query.limit) || 100;
+      const offset = Number(req.query.offset) || 0;
+      const search = req.query.search as string | undefined;
+      const response = await this.forexService.getAllForex(offset, limit, search);
+      return res.status(200).json(response);
     } catch (error) {
       console.log(error);
       return res.status(500).json({ message: "Internal server error" });

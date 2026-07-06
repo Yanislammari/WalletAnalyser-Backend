@@ -30,6 +30,8 @@ export class User extends Model {
   public ban!: boolean;
   public user_type!: UserType;
   public subscribe!: boolean;
+  public stripe_customer_id!: string | null;
+  public stripe_subscription_id!: string | null;
   public activated!: boolean;
   public gift_date!: Date;
   public readonly created_at!: Date;
@@ -92,6 +94,14 @@ User.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false
+    },
+    stripe_customer_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    stripe_subscription_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     gift_date: {
       type: DataTypes.DATE,

@@ -1,9 +1,10 @@
 import { ForexRepository } from "../../repositories/currencies/forex.repository";
 import { CurrenciesRepository } from "../../repositories/currencies/currencies.repository";
-import { ForexListMessage, ForexMetaData } from "../../dtos/currencies/forex";
+import { ForexListMessage, ForexListMetaData, ForexMetaData } from "../../dtos/currencies/forex";
 import * as XLSX from "xlsx";
 import { ExcelService, DateService } from "../index";
-import { attributesForex, Forex } from "../../db_schema";
+import { attributesForex, Currency, Forex } from "../../db_schema";
+import { Op } from "sequelize";
 
 export class ForexService {
   private readonly forexRepository: ForexRepository;
@@ -18,15 +19,39 @@ export class ForexService {
     this.dateService = new DateService();
   }
 
-  public async getAllForex(): Promise<ForexMetaData[]> {
-    const forexList = await this.forexRepository.getAllForexUuid();
+  public async getAllForex(offset = 0, limit = 100, search?: string): Promise<ForexListMetaData> {
+    const forexList = await this.forexRepository.getAllForexUuid(offset, limit, search ?? "");
     const enriched: ForexMetaData[] = await Promise.all(
       forexList.map(async (forex) => ({
         forex,
         last_update: (await this.forexRepository.getLatestForexRate(forex.uuid))?.forex_rate_date ?? null
       }))
     );
-    return enriched;
+    const length = (await this.forexRepository.get({
+      where: search
+        ? {
+            [Op.or]: [
+              { "$baseCurrency.currency_name$": { [Op.startsWith]: search } }, // va chercher le nom dans la clé étrangère
+              { "$quoteCurrency.currency_name$": { [Op.startsWith]: search } },
+            ],
+          }
+        : undefined,
+      include: [
+        {
+          model: Currency,
+          as: "baseCurrency",
+          attributes: [],
+          required: false,
+        },
+        {
+          model: Currency,
+          as: "quoteCurrency",
+          attributes: [],
+          required: false,
+        },
+      ],
+    })).length;
+    return {length , forex_list : enriched};
   }
 
   public async createForex(file: Express.Multer.File, baseCurrencyUuid: string): Promise<ForexListMessage> {

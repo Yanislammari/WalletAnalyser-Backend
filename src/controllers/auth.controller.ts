@@ -229,6 +229,40 @@ class AuthController {
       return res.status(500).json({ message: "Failed to activate account" });
     }
   }
+
+  public async updateProfile(req: Request, res: Response): Promise<Response> {
+    try {
+      const user = (req as any).user;
+      const { firstName, lastName, email, currentPassword, newPassword } = req.body;
+      const updated = await this.authService.updateProfile(user.id, { firstName, lastName, email, currentPassword, newPassword });
+      return res.status(200).json(updated);
+    } catch (error) {
+      if (error instanceof Error && error.message === "EMAIL_ALREADY_EXISTS") {
+        return res.status(409).json({ message: "Email already in use" });
+      }
+      if (error instanceof Error && error.message === "WRONG_PASSWORD") {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      if (error instanceof Error && error.message === "CURRENT_PASSWORD_REQUIRED") {
+        return res.status(400).json({ message: "Current password is required to change password" });
+      }
+      return res.status(500).json({ message: "Failed to update profile" });
+    }
+  }
+
+  public async sendContact(req: Request, res: Response): Promise<Response> {
+    try {
+      const user = (req as any).user;
+      const { subject, message } = req.body;
+      if (!subject || !message) {
+        return res.status(400).json({ message: "Subject and message are required" });
+      }
+      await this.authService.sendContactEmail(user, subject, message);
+      return res.status(200).json({ message: "Message sent" });
+    } catch {
+      return res.status(500).json({ message: "Failed to send message" });
+    }
+  }
 }
 
 export default AuthController;

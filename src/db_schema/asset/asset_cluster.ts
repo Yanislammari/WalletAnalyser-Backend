@@ -136,3 +136,4 @@ AssetCluster.init(
 );
 
 AssetCluster.belongsTo(Asset, { as: "asset", foreignKey: attributesAssetCluster.asset_uuid, onDelete : "CASCADE" });
+Asset.hasOne(AssetCluster,  { as : "cluster", foreignKey: attributesAssetCluster.asset_uuid })

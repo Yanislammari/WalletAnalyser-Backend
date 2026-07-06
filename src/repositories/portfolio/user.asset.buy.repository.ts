@@ -1,8 +1,8 @@
 import { Op } from "sequelize";
-import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
-import { AssetPrice } from "../../db_schema/asset/asset_price";
-import { Asset } from "../../db_schema";
+import { attributesUserAssetBuy, UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
+import { Asset, attributesAsset } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
+import { AssetType } from "../../dtos";
 
 export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
   constructor() {
@@ -43,7 +43,7 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
   public async getAllWithAssetByPortfolioId(portfolioId: string): Promise<UserAssetBuy[]> {
     return this.model.findAll({
       where: { portfolio_uuid: portfolioId },
-      include: [{ model: AssetPrice, as: "asset_price", include: [{ model: Asset, as: "asset" }] }],
+      include: [{ model: Asset, as: "asset" }],
     });
   }
 
@@ -51,11 +51,18 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     return this.model.count({ where: { portfolio_uuid: portfolioId } });
   }
 
-  public async getBuysByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<UserAssetBuy[]> {
+  public async getBuysByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string, assetId?: string): Promise<UserAssetBuy[]> {
+    // When assetId is provided, match by either company_name OR asset_uuid so that buys
+    // stored with a stale/null company_name are still found via the asset UUID fallback.
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
     return this.model.findAll({
       where: {
         portfolio_uuid: portfolioId,
-        company_name: companyName,
+        ...companyFilter,
         buy_date: { [Op.lte]: upToDate },
         asset_buy_share: { [Op.ne]: null },
         asset_buy_price_per_share: { [Op.ne]: null },
@@ -64,12 +71,34 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     });
   }
 
-  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string): Promise<number> {
+  public async sumSharesByCompanyAndDate(portfolioId: string, companyName: string, upToDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
     const total = await this.model.sum("asset_buy_share", {
       where: {
         portfolio_uuid: portfolioId,
-        company_name: companyName,
+        ...companyFilter,
         buy_date: { [Op.lte]: upToDate },
+        asset_buy_share: { [Op.ne]: null },
+      },
+    });
+    return total || 0;
+  }
+
+  public async sumSharesByCompanyAfterDate(portfolioId: string, companyName: string, afterDate: string, assetId?: string): Promise<number> {
+    const companyFilter = assetId && companyName
+      ? { [Op.or]: [{ company_name: companyName }, { asset_uuid: assetId }] }
+      : assetId
+        ? { asset_uuid: assetId }
+        : { company_name: companyName };
+    const total = await this.model.sum("asset_buy_share", {
+      where: {
+        portfolio_uuid: portfolioId,
+        ...companyFilter,
+        buy_date: { [Op.gt]: afterDate },
         asset_buy_share: { [Op.ne]: null },
       },
     });
@@ -83,5 +112,16 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
       group: ["company_name"],
     });
     return results.map((r) => r.company_name as string);
+  }
+
+  public async getBuysType(portfolioId : string, type : AssetType): Promise<UserAssetBuy[]> {
+    return await this.model.findAll({
+      where : { [attributesUserAssetBuy.portfolio_uuid] : portfolioId},
+      include : [{
+        model: Asset,
+        as: "asset",
+        where : { [attributesAsset.asset_type] : type }
+      }]
+    })
   }
 }

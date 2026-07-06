@@ -4,6 +4,7 @@ import { Currency } from "../currencies/currency";
 import { Sector } from "../sector/sector";
 import { Country } from '../country/country';
 import { AssetType } from "../../dtos";
+import { AssetCluster } from "./asset_cluster";
 
 export const attributesAsset = {
   uuid: "uuid",
@@ -14,7 +15,6 @@ export const attributesAsset = {
   display_name : "display_name",
   sector_uuid: "sector_uuid",
   country_uuid: "country_uuid",
-  is_custom: "is_custom",
   createdAt: "created_at",
   updatedAt: "updated_at",
 };
@@ -28,9 +28,9 @@ export class Asset extends Model {
   public display_name!: string;
   public sector_uuid!: string;
   public country_uuid!: string;
-  public is_custom!: boolean;
   public country! : Country
   public sector! : Sector
+  public cluster! : AssetCluster
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -81,11 +81,6 @@ Asset.init(
         model: Country,
         key: "uuid",
       },
-    },
-    is_custom: {
-      type: DataTypes.BOOLEAN,
-      allowNull: true,
-      defaultValue: false,
     },
   },
   {

@@ -1,39 +1,117 @@
 import { Currency, Forex } from "../../db_schema";
 import { Asset } from "../../db_schema/asset/asset";
-import { AssetRepository } from "../../repositories/asset/asset.repository";
-import { AssetDividendRepository } from "../../repositories/asset/asset.dividend.repository";
 import { YahooFinanceService } from "../yahoo.finance.service";
 import { CurrenciesRepository } from "../../repositories";
+import { AssetRepository } from "../../repositories/asset/asset.repository";
+import { AssetPriceRepository } from "../../repositories/asset/asset_price.repository";
 
 const HISTORY_YEARS = 5;
 const CHUNK_DELAY_MS = 100; // shorter delay — fire-and-forget background sync
 
 export class StartupSyncService {
-  private readonly assetRepository: AssetRepository;
-  private readonly assetDividendRepository: AssetDividendRepository;
   private readonly currenciesRepository: CurrenciesRepository;
+  private readonly assetRepository: AssetRepository;
+  private readonly assetPriceRepository: AssetPriceRepository;
   private readonly yahooFinanceService: YahooFinanceService;
 
   constructor() {
-    this.assetRepository = new AssetRepository();
-    this.assetDividendRepository = new AssetDividendRepository();
     this.currenciesRepository = new CurrenciesRepository();
+    this.assetRepository = new AssetRepository();
+    this.assetPriceRepository = new AssetPriceRepository();
     this.yahooFinanceService = new YahooFinanceService();
   }
 
-  // Fire-and-forget: call this without awaiting
+  // Fire-and-forget: call this without awaiting.
+  // Dividends are fetched on-the-fly when a buy is added/edited/deleted.
   public async syncAll(): Promise<void> {
     console.log("[StartupSync] Starting background sync...");
-    await Promise.allSettled([
+    await Promise.all([
       this.syncForexRates(),
-      this.syncDividends(),
+      this.syncPrices(),
     ]);
     console.log("[StartupSync] Background sync complete.");
+  }
+
+  // ─── PRICE SYNC ────────────────────────────────────────────────────────────
+
+  private async syncPrices(): Promise<void> {
+    try {
+      const assets: Asset[] = await this.assetRepository.getAllAssets();
+      const tickeredAssets = assets.filter((a) => !!a.ticker_name);
+      if (tickeredAssets.length === 0) return;
+
+      const fiveYearsAgo = new Date();
+      fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - HISTORY_YEARS);
+      fiveYearsAgo.setUTCHours(0, 0, 0, 0);
+      const today = new Date();
+
+      for (let i = 0; i < tickeredAssets.length; i++) {
+        if (i > 0) await this.yahooFinanceService.sleepMs(CHUNK_DELAY_MS);
+
+        const asset = tickeredAssets[i];
+        const ticker = asset.ticker_name!;
+
+        try {
+          // Check both oldest and latest stored prices.
+          // We need a backfill if the oldest stored date is more than 7 days after the
+          // 5-year cutoff (meaning historical data is missing).
+          // We need a recent update if the latest stored date is more than 2 days old.
+          // This avoids the trap where a live-quote price stored for "today" causes the
+          // sync to skip the entire 5-year historical range.
+          const [oldestStored, latestStored] = await Promise.all([
+            this.assetPriceRepository.getOldestPrice(asset.uuid),
+            this.assetPriceRepository.getClosestPriceBeforeOrAt(asset.uuid, today),
+          ]);
+          const oldestDate = oldestStored
+            ? new Date(String(oldestStored.asset_price_date).split("T")[0])
+            : null;
+          const latestDate = latestStored
+            ? new Date(String(latestStored.asset_price_date).split("T")[0])
+            : null;
+
+          const backfillThreshold = new Date(fiveYearsAgo.getTime() + 7 * 24 * 60 * 60 * 1000);
+          const needsBackfill = !oldestDate || oldestDate > backfillThreshold;
+          const needsRecentUpdate = !latestDate ||
+            (today.getTime() - latestDate.getTime()) > 2 * 24 * 60 * 60 * 1000;
+
+          if (!needsBackfill && !needsRecentUpdate) continue;
+
+          const from = needsBackfill
+            ? fiveYearsAgo
+            : new Date(latestDate!.getTime() + 24 * 60 * 60 * 1000);
+
+          if (from > today) continue;
+
+          console.log(`[StartupSync] Fetching prices for ${ticker} from ${from.toISOString().split("T")[0]}...`);
+          const rows = await this.yahooFinanceService.fetchHistoricalData(ticker, from, today);
+          if (rows.length === 0) {
+            console.warn(`[StartupSync] No prices returned for ${ticker}`);
+            continue;
+          }
+
+          await this.assetPriceRepository.bulkCreatePrices(
+            rows.map((r) => ({
+              asset_uuid:       asset.uuid,
+              asset_price_date: r.date,
+              asset_price:      r.price,
+            }))
+          );
+          console.log(`[StartupSync] Stored ${rows.length} prices for ${ticker} (from ${from.toISOString().split("T")[0]})`);
+        }
+        catch (err) {
+          console.error(`[StartupSync] Price sync error for ${ticker}:`, err instanceof Error ? err.message : String(err));
+        }
+      }
+    }
+    catch (err) {
+      console.error("[StartupSync] syncPrices error:", err instanceof Error ? err.message : String(err));
+    }
   }
 
   // ─── FOREX SYNC ────────────────────────────────────────────────────────────
 
   private async syncForexRates(): Promise<void> {
+    console.log("[StartupSync] Starting forex sync...");
     try {
       const currencies: Currency[] = await this.currenciesRepository.getAllCurrencies();
       if (currencies.length < 2) return;
@@ -146,62 +224,4 @@ export class StartupSyncService {
     }
   }
 
-  // ─── DIVIDEND SYNC ─────────────────────────────────────────────────────────
-
-  private async syncDividends(): Promise<void> {
-    try {
-      const assets: Asset[] = await this.assetRepository.getAllAssets();
-      const tickerAssets = assets.filter((a) => a.ticker_name != null && a.ticker_name.trim() !== "");
-
-      if (tickerAssets.length === 0) return;
-
-      await this.backfillHistoricalDividends(tickerAssets);
-    }
-    catch (err: unknown) {
-      console.error("[StartupSync] syncDividends error:", err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  private async backfillHistoricalDividends(assets: Asset[]): Promise<void> {
-    const assetIds = assets.map((a) => a.uuid);
-    const oldestDates = await this.assetDividendRepository.getOldestDividendDatesByAssets(assetIds);
-
-    const fiveYearsAgo = new Date();
-    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - HISTORY_YEARS);
-    fiveYearsAgo.setUTCHours(0, 0, 0, 0);
-
-    const now = new Date();
-
-    for (let i = 0; i < assets.length; i++) {
-      if (i > 0) await this.yahooFinanceService.sleepMs(CHUNK_DELAY_MS);
-
-      const asset = assets[i];
-      const ticker = asset.ticker_name!;
-      const oldest = oldestDates.get(asset.uuid);
-
-      // Skip if we already have a complete 5yr history
-      if (oldest && oldest <= fiveYearsAgo) continue;
-
-      const from = fiveYearsAgo;
-      const to = oldest ? new Date(oldest.getTime() - 24 * 60 * 60 * 1000) : now;
-      if (from >= to) continue;
-
-      try {
-        const dividends = await this.yahooFinanceService.fetchHistoricalDividends(ticker, from, to);
-        if (dividends.length === 0) continue;
-
-        const records = dividends.map((row) => ({
-          asset_uuid: asset.uuid,
-          dividend_amount: row.dividends,
-          ex_date: row.date,
-        }));
-
-        await this.assetDividendRepository.bulkCreate(records);
-        console.log(`[StartupSync] Stored ${records.length} dividends for ${ticker}`);
-      }
-      catch (err) {
-        console.error(`[StartupSync] dividend backfill error for ${ticker}:`, err instanceof Error ? err.message : String(err));
-      }
-    }
-  }
 }

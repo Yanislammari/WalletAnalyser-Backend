@@ -32,8 +32,14 @@ export class AssetBaseCurrencySyncService {
     const tickers: string[] = assetsWithoutCurrency.map((asset) => asset.ticker_name!);
     console.log(`[BaseCurrencySync] Fetching currencies from Yahoo for ${tickers.length} tickers...`);
 
-    const currencyMap: Map<string, string> = await this.yahooFinanceService.fetchCurrenciesForTickers(tickers);
-    console.log(`[BaseCurrencySync] Yahoo returned currencies for ${currencyMap.size} tickers`);
+    let currencyMap: Map<string, string>;
+    try {
+      currencyMap = await this.yahooFinanceService.fetchCurrenciesForTickers(tickers);
+      console.log(`[BaseCurrencySync] Yahoo returned currencies for ${currencyMap.size} tickers`);
+    } catch (err: unknown) {
+      console.warn(`[BaseCurrencySync] Yahoo unreachable, skipping sync — ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
 
     let updated = 0;
     let skipped = 0;

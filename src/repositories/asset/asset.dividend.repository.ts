@@ -38,4 +38,16 @@ export class AssetDividendRepository extends BaseRepository<AssetDividend> {
     if (records.length === 0) return;
     await AssetDividend.bulkCreate(records as any, { ignoreDuplicates: true });
   }
+
+  /**
+   * Insert or update dividend records.
+   * Uses the unique (asset_uuid, ex_date) constraint — if a record already exists
+   * for that date its amount is updated in place (handles revised dividend announcements).
+   */
+  public async upsertBulk(
+    records: Array<{ asset_uuid: string; dividend_amount: number; ex_date: Date | string }>
+  ): Promise<void> {
+    if (records.length === 0) return;
+    await AssetDividend.bulkCreate(records as any, { updateOnDuplicate: ["dividend_amount"] });
+  }
 }

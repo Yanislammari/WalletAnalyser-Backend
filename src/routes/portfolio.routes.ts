@@ -1,5 +1,6 @@
 import { Router } from "express";
 import PortfolioController from "../controllers/portfolio.controller";
+import { createVerifySubscribeMiddleware } from "../middleware/subscribe";
 
 const PortfolioRoutes = (): Router => {
   const router: Router = Router();
@@ -11,7 +12,7 @@ const PortfolioRoutes = (): Router => {
   router.get("/:portfolioId/asset-count", (req, res) => portfolioController.getAssetCountByPortfolioId(req, res));
   router.get("/:portfolioId/companies", (req, res) => portfolioController.getCompaniesByPortfolioId(req, res));
   router.get("/:portfolioId/total", (req, res) => portfolioController.getPortfolioTotal(req, res));
-  router.get("/:portfolioId/metrics", (req, res) => portfolioController.getMetrics(req, res));
+  router.get("/:portfolioId/metrics", createVerifySubscribeMiddleware(), (req, res) => portfolioController.getMetrics(req, res));
   router.get("/:portfolioId/buys", (req, res) => portfolioController.getBuysByPortfolioId(req, res));
   router.post("/:portfolioId/buys", (req, res) => portfolioController.addAssetBuy(req, res));
   router.get("/:portfolioId/available-shares", (req, res) => portfolioController.getAvailableShares(req, res));
@@ -20,6 +21,9 @@ const PortfolioRoutes = (): Router => {
   router.post("/:portfolioId/sells", (req, res) => portfolioController.addAssetSell(req, res));
   router.get("/:portfolioId/dividends", (req, res) => portfolioController.getDividendsByPortfolioId(req, res));
   router.post("/:portfolioId/dividends", (req, res) => portfolioController.addAssetDividend(req, res));
+  router.patch("/:portfolioId/buys/:buyId", (req, res) => portfolioController.updateAssetBuy(req, res));
+  router.patch("/:portfolioId/sells/:sellId", (req, res) => portfolioController.updateAssetSell(req, res));
+  router.patch("/:portfolioId/dividends/:dividendId", (req, res) => portfolioController.updateAssetDividend(req, res));
   router.delete("/:portfolioId", (req, res) => portfolioController.deletePortfolio(req, res));
   router.delete("/:portfolioId/buys/:buyId", (req, res) => portfolioController.deleteAssetBuy(req, res));
   router.delete("/:portfolioId/sells/:sellId", (req, res) => portfolioController.deleteAssetSell(req, res));

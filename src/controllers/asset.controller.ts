@@ -5,16 +5,83 @@ import { AssetResponseDto } from "../dtos/asset/responses/asset.response.dto";
 import { AssetPriceResponseDto } from "../dtos/asset/responses/asset.price.response.dto";
 import { AssetDatabaseModel } from "../models";
 import { EtfPatchAssetPayload, EtfPostHolding } from "../dtos";
+import { YahooFinanceService } from "../services/yahoo.finance.service";
 import path from "path";
 import fs from "fs"
 
 class AssetController {
   private readonly assetService: AssetService;
   private readonly etfService : EtfService;
+  private readonly yahooFinanceService: YahooFinanceService;
 
   constructor() {
     this.assetService = new AssetService();
     this.etfService = new  EtfService();
+    this.yahooFinanceService = new YahooFinanceService();
+  }
+
+  // Returns a flat Asset[] array — used by the frontend AssetService.getAssets()
+  public async getAll(_req: Request, res: Response): Promise<Response> {
+    try {
+      const assets: AssetResponseDto[] = await this.assetService.getAllAssets();
+      return res.status(200).json(assets);
+    } catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /** GET /asset/preview?ticker=AAPL — fetch Yahoo Finance info without saving */
+  public async previewCustomAsset(req: Request, res: Response): Promise<Response> {
+    try {
+      const ticker: string = req.query.ticker as string;
+      if (!ticker) {
+        return res.status(400).json({ message: "ticker query parameter is required" });
+      }
+      const info = await this.assetService.getAssetQuoteInfo(ticker.toUpperCase());
+      if (!info) {
+        return res.status(404).json({ message: "TICKER_NOT_FOUND" });
+      }
+      return res.status(200).json(info);
+    } catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /** POST /asset/custom — save a custom asset */
+  public async createCustomAsset(req: Request, res: Response): Promise<Response> {
+    try {
+      const { ticker } = req.body as { ticker: string };
+      if (!ticker) {
+        return res.status(400).json({ message: "ticker is required" });
+      }
+      const asset: AssetResponseDto = await this.assetService.createCustomAsset(ticker.toUpperCase());
+      return res.status(201).json(asset);
+    } catch (error) {
+      if (error instanceof Error && error.message === "TICKER_NOT_FOUND") {
+        return res.status(404).json({ message: "TICKER_NOT_FOUND" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getPrice(req: Request, res: Response): Promise<Response> {
+    try {
+      const assetId: string = req.params.assetId as string;
+      const dateParam: string | undefined = req.query.date as string | undefined;
+      if (!dateParam) {
+        return res.status(400).json({ message: "Missing required query parameter: date" });
+      }
+      const result: AssetPriceResponseDto | null = await this.assetService.getAssetPrice(assetId, dateParam);
+      if (!result) {
+        return res.status(404).json({ message: "No price found for this asset" });
+      }
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof Error && error.message === "ASSET_NOT_FOUND") {
+        return res.status(404).json({ message: "Asset not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 
   // Returns a flat Asset[] array — used by the frontend AssetService.getAssets()
@@ -261,6 +328,39 @@ class AssetController {
       }
       return res.status(200).json({ message: "Asset deleted successfully" });
     } catch (error) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /**
+   * GET /asset/benchmark?ticker=^GSPC&from=2020-01-01
+   * Returns monthly closing prices for the given ticker, suitable for normalization.
+   */
+  public async getBenchmarkHistory(req: Request, res: Response): Promise<Response> {
+    try {
+      const ticker = req.query.ticker as string | undefined;
+      if (!ticker) return res.status(400).json({ message: "ticker is required" });
+
+      const fromParam = req.query.from as string | undefined;
+      const fromDate  = fromParam ? new Date(fromParam) : new Date(Date.now() - 10 * 365.25 * 24 * 3600 * 1000);
+      const toDate    = new Date();
+
+      const daily = await this.yahooFinanceService.fetchHistoricalData(ticker, fromDate, toDate);
+      if (daily.length === 0) return res.status(200).json([]);
+
+      // Aggregate to monthly: keep the last trading-day price of each month
+      const monthMap = new Map<string, number>();
+      for (const { date, price } of daily) {
+        const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthMap.set(month, price); // overwrites → last entry wins
+      }
+
+      const result = Array.from(monthMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, price]) => ({ month, price }));
+
+      return res.status(200).json(result);
+    } catch {
       return res.status(500).json({ message: "Internal server error" });
     }
   }

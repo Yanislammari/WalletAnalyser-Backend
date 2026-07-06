@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import { attributesCurrency, attributesForex, attributesForexRate, Currency, Forex, ForexRate } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 import { CurrenciesRepository } from "./currencies.repository";
@@ -44,26 +45,39 @@ export class ForexRepository extends BaseRepository<Forex> {
     return {latestDate : messageDate, numberOfEntry}
   }
 
-  async getAllForexUuid(): Promise<Forex[]> {
-    return Forex.findAll({
+  async getAllForexUuid(offset: number, limit: number, search: string): Promise<Forex[]> {
+    const forexes = await Forex.findAll({
+      offset,
+      limit,
       attributes: [attributesForex.uuid],
       include: [
         {
           model: Currency,
           as: "baseCurrency",
           attributes: [attributesCurrency.uuid, attributesCurrency.currency_name],
+          required: true,
         },
         {
           model: Currency,
           as: "quoteCurrency",
           attributes: [attributesCurrency.uuid, attributesCurrency.currency_name],
+          required: true,
         },
       ],
+      where: search
+        ? {
+            [Op.or]: [
+              { "$baseCurrency.currency_name$": { [Op.startsWith]: search } },
+              { "$quoteCurrency.currency_name$": { [Op.startsWith]: search } },
+            ],
+          }
+        : undefined,
       order: [
         [{ model: Currency, as: "baseCurrency" }, attributesCurrency.currency_name, "ASC"],
         [{ model: Currency, as: "quoteCurrency" }, attributesCurrency.currency_name, "ASC"],
       ],
     });
+    return forexes
   }
 
   async getAllForex(): Promise<Forex[]> {

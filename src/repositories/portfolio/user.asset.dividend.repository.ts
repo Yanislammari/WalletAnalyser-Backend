@@ -7,7 +7,7 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
     super(UserAssetDividend);
   }
 
-  public async getByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string): Promise<{ rows: UserAssetDividend[]; count: number }> {
+  public async getByPortfolioId(portfolioId: string, page: number, limit: number, from?: string, to?: string, company?: string): Promise<{ rows: UserAssetDividend[]; count: number }> {
     const where: Record<string, unknown> = { portfolio_uuid: portfolioId };
 
     if (from || to) {
@@ -21,7 +21,11 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
 
       where.cashflow_date = dateRange;
     }
-    
+
+    if (company) {
+      where.company_name = company;
+    }
+
     return this.model.findAndCountAll({
       where,
       limit,
@@ -40,5 +44,15 @@ export class UserAssetDividendRepository extends BaseRepository<UserAssetDividen
 
   public async deleteBySourceBuyId(buyId: string): Promise<void> {
     await this.model.destroy({ where: { source_buy_uuid: buyId } });
+  }
+
+  public async deleteByPortfolioAndAssetFromDate(portfolioId: string, assetId: string, fromDate: string): Promise<void> {
+    await this.model.destroy({
+      where: {
+        portfolio_uuid: portfolioId,
+        asset_uuid: assetId,
+        cashflow_date: { [Op.gte]: fromDate },
+      },
+    });
   }
 }

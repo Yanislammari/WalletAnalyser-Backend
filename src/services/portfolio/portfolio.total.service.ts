@@ -1,4 +1,4 @@
-import { Currency } from "../../db_schema";
+import { Asset, Currency } from "../../db_schema";
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
@@ -10,6 +10,7 @@ import { AssetPriceRepository } from "../../repositories/asset/asset_price.repos
 import { AssetRepository } from "../../repositories/asset/asset.repository";
 import { PortfolioTotalResponseDto } from "../../dtos/portfolio/responses/portfolio.total.response.dto";
 import { CurrenciesRepository } from "../../repositories";
+import { YahooFinanceService } from "../yahoo.finance.service";
 
 export class PortfolioTotalService {
   private readonly portfolioRepository: PortfolioRepository;
@@ -19,6 +20,7 @@ export class PortfolioTotalService {
   private readonly currenciesRepository: CurrenciesRepository;
   private readonly assetPriceRepository: AssetPriceRepository;
   private readonly assetRepository: AssetRepository;
+  private readonly yahooFinanceService: YahooFinanceService;
 
   // Cache for forex rates during a single calculation to avoid repeated DB hits
   private rateCache: Map<string, number> = new Map();
@@ -31,6 +33,7 @@ export class PortfolioTotalService {
     this.currenciesRepository = new CurrenciesRepository();
     this.assetPriceRepository = new AssetPriceRepository();
     this.assetRepository = new AssetRepository();
+    this.yahooFinanceService = new YahooFinanceService();
   }
 
   public async getPortfolioTotal(portfolioId: string, currencyId: string): Promise<PortfolioTotalResponseDto> {
@@ -68,39 +71,78 @@ export class PortfolioTotalService {
   }
 
   private async computeMarketValue(buys: UserAssetBuy[], sells: UserAssetSell[], currencyId: string): Promise<number> {
-    // company_name on buys/sells = asset.official_name ?? asset.ticker_name (set at buy creation time)
-    // Group net shares by company_name, then resolve to Asset for latest price
-    const netByCompany = new Map<string, number>();
+    // Prefer asset_uuid (direct FK set since schema migration).
+    // Fall back to company_name for older records that pre-date the migration.
+    const netByAssetUuid = new Map<string, number>();
+    const netByCompanyName = new Map<string, number>();
 
     for (const buy of buys) {
-      if (!buy.company_name || buy.asset_buy_share == null) continue;
-      netByCompany.set(buy.company_name, (netByCompany.get(buy.company_name) ?? 0) + buy.asset_buy_share);
+      if (buy.asset_buy_share == null) continue;
+      if (buy.asset_uuid) {
+        netByAssetUuid.set(buy.asset_uuid, (netByAssetUuid.get(buy.asset_uuid) ?? 0) + buy.asset_buy_share);
+      } else if (buy.company_name) {
+        netByCompanyName.set(buy.company_name, (netByCompanyName.get(buy.company_name) ?? 0) + buy.asset_buy_share);
+      }
     }
 
     for (const sell of sells) {
-      if (!sell.company_name || sell.asset_sell_share == null) continue;
-      netByCompany.set(sell.company_name, (netByCompany.get(sell.company_name) ?? 0) - sell.asset_sell_share);
+      if (sell.asset_sell_share == null) continue;
+      if (sell.asset_uuid) {
+        netByAssetUuid.set(sell.asset_uuid, (netByAssetUuid.get(sell.asset_uuid) ?? 0) - sell.asset_sell_share);
+      } else if (sell.company_name) {
+        netByCompanyName.set(sell.company_name, (netByCompanyName.get(sell.company_name) ?? 0) - sell.asset_sell_share);
+      }
     }
 
     const today = new Date();
     let marketValue = 0;
 
-    for (const [companyName, shares] of netByCompany) {
+    // --- Assets resolved via UUID (new records) ---
+    for (const [assetUuid, shares] of netByAssetUuid) {
       if (shares <= 0) continue;
+      const asset = await this.assetRepository.getAssetFromUUID(assetUuid);
+      if (!asset) continue;
+      const price = await this.resolveLatestPrice(asset);
+      if (price == null) continue;
+      const rate = await this.getConversionRate(asset.base_currency_uuid, currencyId, today);
+      marketValue += shares * price * rate;
+    }
 
-      // Resolve asset: company_name was stored as official_name ?? ticker_name
+    // --- Assets resolved via company_name (legacy records) ---
+    for (const [companyName, shares] of netByCompanyName) {
+      if (shares <= 0) continue;
       let asset = await this.assetRepository.getAssetFromOfficialName(companyName);
       if (!asset) asset = await this.assetRepository.getAssetFromTicker(companyName);
       if (!asset) continue;
-
-      const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
-      if (!latestPrice) continue;
-
+      const price = await this.resolveLatestPrice(asset);
+      if (price == null) continue;
       const rate = await this.getConversionRate(asset.base_currency_uuid, currencyId, today);
-      marketValue += shares * latestPrice.asset_price * rate;
+      marketValue += shares * price * rate;
     }
 
     return marketValue;
+  }
+
+  /**
+   * Resolves the latest price for an asset.
+   * Tries the DB first; if no price record exists, falls back to a live Yahoo Finance quote.
+   */
+  private async resolveLatestPrice(asset: Asset): Promise<number | null> {
+    const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
+    if (latestPrice) return latestPrice.asset_price;
+
+    // No historical price in DB — try a live quote from Yahoo Finance
+    if (asset.ticker_name) {
+      try {
+        const quote = await this.yahooFinanceService.fetchAssetQuote(asset.ticker_name);
+        if (quote?.price != null) return quote.price;
+      }
+      catch {
+        // Yahoo unreachable — skip
+      }
+    }
+
+    return null;
   }
 
   private async sumBuys(buys: UserAssetBuy[], targetCurrencyId: string): Promise<number> {
@@ -153,8 +195,8 @@ export class PortfolioTotalService {
     return total;
   }
 
-  private async getConversionRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
-    if (sourceCurrencyId === targetCurrencyId) return 1;
+  private async getConversionRate(sourceCurrencyId: string | null, targetCurrencyId: string, date: Date): Promise<number> {
+    if (!sourceCurrencyId || sourceCurrencyId === targetCurrencyId) return 1;
 
     // Round date to day for cache key
     const dateStr = date.toISOString().split("T")[0];

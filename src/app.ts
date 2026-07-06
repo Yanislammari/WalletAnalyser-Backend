@@ -1,5 +1,5 @@
 import { AzureAppInsightsService } from "./services/azure.app.insights.service";
-import express, { Router, Request, Response } from "express";
+import express from "express";
 import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -8,6 +8,7 @@ import { ExcelService, AuthService } from "./services";
 import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
 import { StartupSyncService } from "./services/startup/startup.sync.service";
 import AuthRoutes from "./routes/auth.routes";
+import SubscriptionRoutes from "./routes/subscription.routes";
 import PortfolioRoutes from "./routes/portfolio.routes";
 import CurrencyRoutes from "./routes/currency.routes";
 import AdminRoutes from "./routes/admin/admin.route";
@@ -16,10 +17,9 @@ import AssetRoutes from "./routes/asset.routes";
 import SectorsRoutes from "./routes/sectors.routes";
 import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
-import { BadgeRepository } from "./repositories/badge/badge.repository";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
-import { createVerifyTokenMiddleware } from "./middleware/token";
+import { createVerifyTokenAdminMiddleware, createVerifyTokenMiddleware } from "./middleware/token";
 import ClusterRoutes from "./routes/asset_cluster.routes";
 import { PYTHON_BASE_URL } from "./constants/env";
 import { AssetClusterRepository } from "./repositories/asset/asset_cluster.repository";
@@ -32,18 +32,25 @@ const FRONTEND_ADDRESS = JSON.parse(process.env.FRONTEND_ADDRESS || "[]") as str
 const app = express();
 
 async function setUpApi() {
-  const authService = new AuthService();
   await startOfDatabase();
-  const badgeService = new BadgeService();
-  await badgeService.createAllBadges()
-  const excelService = new ExcelService();
-  await excelService.addDataFromAdmin();
+  const authService = new AuthService();
   authService.registerAdmin({
     email: "alexisduplessis2003@gmail.com",
     password: "MoiMeme94@",
     firstName: "Admin",
     lastName: "Admin",
   });
+  const badgeService = new BadgeService();
+  await badgeService.createAllBadges()
+  const excelService = new ExcelService();
+  await excelService.addDataFromAdmin();
+
+  const assetClusterRepository = new AssetClusterRepository();
+  const clusters = await assetClusterRepository.get()
+  if(clusters.length == 0){
+    console.log("No clusters found, creating prod model...")
+    //fetch(`${PYTHON_BASE_URL}create-prod-model`)
+  }
 
   const assetClusterRepository = new AssetClusterRepository();
   const clusters = await assetClusterRepository.get()
@@ -71,6 +78,9 @@ app.use(
   })
 );
 
+// Stripe webhook must receive raw body — mount BEFORE express.json()
+app.use("/subscription/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
@@ -97,14 +107,15 @@ app.use((err: any, req: any, res: any, next: any) => {
 });
 
 app.use("/auth", AuthRoutes());
+app.use("/subscription", SubscriptionRoutes());
 app.use("/sector",SectorsRoutes());
 app.use("/country",CountriesRoutes());
-app.use("/portfolio", PortfolioRoutes());
-app.use("/currency", CurrencyRoutes());
-app.use("/badges", BadgeRoutes());
+app.use("/portfolio", createVerifyTokenMiddleware(), PortfolioRoutes());
+app.use("/currency", createVerifyTokenMiddleware(), CurrencyRoutes());
+app.use("/badges", createVerifyTokenMiddleware(), BadgeRoutes());
 app.use("/clusters", createVerifyTokenMiddleware(), ClusterRoutes());
 app.use("/admin", AdminRoutes());
-app.use("/import", ImportRoutes());
-app.use("/asset", AssetRoutes());
+app.use("/import", createVerifyTokenMiddleware(), ImportRoutes());
+app.use("/asset", createVerifyTokenMiddleware(), AssetRoutes());
 
 export default app;
