@@ -52,13 +52,6 @@ async function setUpApi() {
     //fetch(`${PYTHON_BASE_URL}create-prod-model`)
   }
 
-  const assetClusterRepository = new AssetClusterRepository();
-  const clusters = await assetClusterRepository.get()
-  if(clusters.length == 0){
-    console.log("No clusters found, creating prod model...")
-    fetch(`${PYTHON_BASE_URL}create-prod-model`)
-  }
-
   const assetBaseCurrencySyncService = new AssetBaseCurrencySyncService();
   await assetBaseCurrencySyncService.syncBaseCurrencies();
 
