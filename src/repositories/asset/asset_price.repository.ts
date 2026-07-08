@@ -68,6 +68,13 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
     }
   }
 
+  async getAllPricesForAsset(assetUuid: string): Promise<AssetPrice[]> {
+    return this.model.findAll({
+      where: { [attributesAssetPrice.asset_uuid]: assetUuid },
+      order: [[attributesAssetPrice.asset_price_date, "ASC"]],
+    });
+  }
+
   async bulkCreatePrices(records: Array<{ asset_uuid: string; asset_price_date: Date; asset_price: number }>): Promise<void> {
     if (records.length === 0) return;
     await AssetPrice.bulkCreate(records as any, { ignoreDuplicates: true });

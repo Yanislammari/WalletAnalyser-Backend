@@ -261,6 +261,26 @@ export class AssetRepository extends BaseRepository<Asset> {
     }
   }
 
+  async getAssetWithSectorAndCountry(uuid: string): Promise<Asset | null> {
+    return Asset.findOne({
+      where: { [attributesAsset.uuid]: uuid },
+      include: [
+        { model: Sector,  as: "sector"  },
+        { model: Country, as: "country" },
+      ],
+    });
+  }
+
+  async patchSectorAndCountry(uuid: string, sectorUuid: string | null, countryUuid: string | null): Promise<void> {
+    await Asset.update(
+      {
+        [attributesAsset.sector_uuid]:  sectorUuid,
+        [attributesAsset.country_uuid]: countryUuid,
+      },
+      { where: { [attributesAsset.uuid]: uuid } }
+    );
+  }
+
   async getAssetsFull(asset_uuid : string): Promise<Asset | null>{
     const result = await Asset.findOne({
       where : { [attributesAsset.uuid] : asset_uuid},
