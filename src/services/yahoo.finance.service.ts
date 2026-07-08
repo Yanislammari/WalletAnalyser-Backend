@@ -239,21 +239,25 @@ export class YahooFinanceService {
     currency: string | null;
     price: number | null;
     assetType: string | null;
+    sector: string | null;
+    country: string | null;
   } | null> {
     try {
       const result = await this.yahooFinance.quoteSummary(ticker.toUpperCase(), {
-        modules: ["price"],
-      }) as any;
+        modules: ["price", "assetProfile"],
+      }, { validateResult: false } as any) as any;
 
       const price = result?.price;
       if (!price) return null;
 
       return {
-        ticker: ticker.toUpperCase(),
+        ticker:       ticker.toUpperCase(),
         officialName: price.longName ?? price.shortName ?? null,
-        currency: price.currency ?? null,
-        price: price.regularMarketPrice ?? null,
-        assetType: price.quoteType ?? null,
+        currency:     price.currency ?? null,
+        price:        price.regularMarketPrice ?? null,
+        assetType:    price.quoteType ?? null,
+        sector:       result?.assetProfile?.sector ?? null,
+        country:      result?.assetProfile?.country ?? null,
       };
     }
     catch {
