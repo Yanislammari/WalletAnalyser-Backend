@@ -64,7 +64,6 @@ export class MetricService {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    // Apply fromDate filter if provided
     const filterFrom = fromDate ? new Date(fromDate) : null;
 
     const flows: CashFlow[] = [];
@@ -78,6 +77,9 @@ export class MetricService {
       flows.push({ date: buyDate, amount: amount * rate, type: "buy", company: buy.company_name ?? undefined });
     }
 
+    // ── Sell loop — also track cost basis of each sell for Realized P&L ────
+    let costBasisOfSells = 0;
+
     for (const sell of sells) {
       const sellDate = new Date(sell.sell_date);
       if (filterFrom && sellDate < filterFrom) continue;
@@ -85,6 +87,11 @@ export class MetricService {
       if (amount == null) continue;
       const rate = await this.getRate(sell.sell_currency_uuid, currencyId, sellDate);
       flows.push({ date: sellDate, amount: amount * rate, type: "sell", company: sell.company_name ?? undefined });
+
+      // Cost basis = shares_sold × average_buy_price_at_time_of_sell
+      if (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null) {
+        costBasisOfSells += sell.asset_sell_share * sell.average_asset_share_buy_price * rate;
+      }
     }
 
     for (const div of dividends) {
@@ -104,61 +111,92 @@ export class MetricService {
     const totalSells     = flows.filter(f => f.type === "sell").reduce((s, f) => s + f.amount, 0);
     const totalDividends = flows.filter(f => f.type === "dividend").reduce((s, f) => s + f.amount, 0);
     const totalReturned  = totalSells + totalDividends;
-    const gain           = totalReturned - totalInvested;
-    const gainPercent    = totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
+
+    // ── Realized P&L (FIX #1) ──────────────────────────────────────────────
+    // Correct formula: (proceeds from sells - cost of those shares) + dividends
+    // Does NOT subtract open-position capital → no more artificial -66%
+    const gain = costBasisOfSells > 0
+      ? (totalSells - costBasisOfSells) + totalDividends
+      : totalReturned - totalInvested; // fallback when avg_buy_price unavailable
+
+    // Express as % of total invested so it's comparable across periods
+    const gainPercent = totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
 
     // ── Time ───────────────────────────────────────────────────────────────
-    // Period start = fromDate if filtered, else the actual first buy
-    const firstBuy  = flows.find(f => f.type === "buy")!;
+    const firstBuy    = flows.find(f => f.type === "buy")!;
     const periodStart = filterFrom ?? (firstBuy?.date ?? allTimeFirstBuy);
-    const periodYears = (365.25 * 24 * 3600 * 1000) / (today.getTime() - periodStart.getTime());
+    const periodYears = (today.getTime() - periodStart.getTime()) / (365.25 * 24 * 3600 * 1000);
 
-    // ── CAGR ──────────────────────────────────────────────────────────────
+    // ── CAGR (realized) ────────────────────────────────────────────────────
     const cagr = periodYears > 0.01
       ? (Math.pow(Math.max(1 + gainPercent / 100, 1e-10), 1 / periodYears) - 1) * 100
       : gainPercent;
 
-    // ── Monthly series ────────────────────────────────────────────────────
-    const monthlyReturns = this.buildMonthlyReturns(flows, today);
+    // ── Monthly chart data ─────────────────────────────────────────────────
+    // Computed FIRST so real market values are available for TWR (FIX #2)
+    const monthlyData = await this.computeMonthlyData(flows, buys, sells, currencyId, today);
 
-    // ── TWR — computed first so twrAnnualized can be used in Sharpe/Sortino
+    // ── Beginning-of-period market value for filtered TWR (FIX #2 cont.) ──
+    // For a "2Y" view, we need the portfolio value at the START of that period
+    // (including positions bought before the filter date) so Modified Dietz
+    // doesn't start from 0 and produce nonsense on the first month.
+    let beginningPeriodMV = 0;
+    if (filterFrom) {
+      const prevMonth = new Date(filterFrom);
+      prevMonth.setMonth(prevMonth.getMonth() - 1);
+      const prevMonthKey = this.monthKey(prevMonth);
+      const prevMVMap = await this.computeHistoricalMarketValues(buys, sells, [prevMonthKey], currencyId);
+      beginningPeriodMV = prevMVMap.get(prevMonthKey) ?? 0;
+    }
+
+    // ── Modified Dietz monthly returns (FIX #2) ───────────────────────────
+    // R_m = (EV_m - BV_m - CF_m) / (BV_m + CF_m/2)
+    // CF_m = buys(+) - sells(-) - dividends(-) for month m
+    const monthlyReturns = this.buildMonthlyReturnsMV(monthlyData, flows, beginningPeriodMV);
+
+    // ── TWR ────────────────────────────────────────────────────────────────
     const { twr, twrAnnualized, logTwr } = this.computeTWR(monthlyReturns, periodYears);
 
-    // ── Volatility (annualized std dev of monthly returns) ─────────────────
+    // ── Volatility ─────────────────────────────────────────────────────────
     const volatility = this.annualizedStdDev(monthlyReturns);
 
-    // ── Sharpe — uses twrAnnualized (not gainPercent-based CAGR) so that
-    //    numerator and denominator are derived from the same return series ──
+    // ── Sharpe ─────────────────────────────────────────────────────────────
     const sharpeRatio = volatility > 0.01
       ? (twrAnnualized / 100 - RISK_FREE_RATE) / (volatility / 100)
       : 0;
 
-    // ── Sortino — same fix: use twrAnnualized in numerator ─────────────────
+    // ── Sortino ────────────────────────────────────────────────────────────
     const sortinoRatio = this.computeSortino(monthlyReturns, twrAnnualized);
 
-    // ── XIRR ──────────────────────────────────────────────────────────────
+    // ── XIRR (FIX #3) ─────────────────────────────────────────────────────
     const xirr = this.computeXIRR(flows);
 
     // ── Dividend yield ─────────────────────────────────────────────────────
     const dividendYield = totalInvested > 0 ? (totalDividends / totalInvested) * 100 : 0;
 
-    // ── Holdings breakdown (market value; falls back to cost basis if no prices)
+    // ── Holdings breakdown ─────────────────────────────────────────────────
     const { topHoldings: topHoldingsMv, sectorBreakdown, countryBreakdown } =
       await this.computeHoldingsBreakdown(buys, sells, currencyId);
     const topHoldings = topHoldingsMv.length > 0 ? topHoldingsMv : this.computeTopHoldings(flows, totalInvested);
 
-    // ── Monthly data for chart ─────────────────────────────────────────────
-    const monthlyData = await this.computeMonthlyData(flows, buys, sells, currencyId, today);
-
-    // ── Drawdown ───────────────────────────────────────────────────────────
+    // ── Drawdown (FIX #4) — from real market values, not cash flows ────────
     const { maxDrawdown, maxDrawdownDurationMonths } = this.computeDrawdown(monthlyData);
 
     // ── Monthly TWR series (for comparison chart) ─────────────────────────
-    const monthlyTwr = this.buildMonthlyTwrSeries(flows, today);
+    const monthlyTwr = this.buildMonthlyTwrSeries(monthlyData, flows, beginningPeriodMV);
 
-    // ── Mark-to-market metrics (unrealized gains included) ─────────────────
-    // Only computed when portfolioMarketValue is provided (all-time view, no filter)
-    const mtmValue       = portfolioMarketValue ?? 0;
+    // ── Mark-to-market metrics ─────────────────────────────────────────────
+    // Fallback: if portfolioMarketValue wasn't provided for the all-time view
+    // (e.g. getPortfolioTotal threw silently in the controller), derive it from
+    // the most recent monthly market value we already computed.
+    // We only do this for the all-time view (no filterFrom) — for period views
+    // the controller intentionally omits it to avoid mixing pre-period positions
+    // into a period-scoped XIRR calculation.
+    let mtmValue = portfolioMarketValue ?? 0;
+    if (mtmValue === 0 && !filterFrom && monthlyData.length > 0) {
+      const lastWithMV = [...monthlyData].reverse().find(p => p.marketValue > 0);
+      if (lastWithMV) mtmValue = lastWithMV.marketValue;
+    }
     const totalReturnedMtm = totalReturned + mtmValue;
     const gainMtm          = totalReturnedMtm - totalInvested;
     const gainPercentMtm   = totalInvested > 0 ? (gainMtm / totalInvested) * 100 : 0;
@@ -166,121 +204,137 @@ export class MetricService {
       ? (Math.pow(Math.max(1 + gainPercentMtm / 100, 1e-10), 1 / periodYears) - 1) * 100
       : gainPercentMtm;
 
-    // XIRR MTM: add a virtual sell of the market value at today's date
+    // XIRR MTM: add a virtual sell of the current market value at today's date
     const xirrMtm = mtmValue > 0
       ? this.computeXIRR([...flows, { date: today, amount: mtmValue, type: "sell" }])
       : xirr;
 
     return {
-      totalInvested:   this.round(totalInvested),
-      totalReturned:   this.round(totalReturned),
-      gain:            this.round(gain),
-      gainPercent:     this.round(gainPercent),
+      totalInvested:        this.round(totalInvested),
+      totalReturned:        this.round(totalReturned),
+      gain:                 this.round(gain),
+      gainPercent:          this.round(gainPercent),
       portfolioMarketValue: this.round(mtmValue),
-      gainMtm:         this.round(gainMtm),
-      gainPercentMtm:  this.round(gainPercentMtm),
-      cagrMtm:         this.round(cagrMtm),
-      xirrMtm:         this.round(xirrMtm),
-      cagr:            this.round(cagr),
-      volatility:      this.round(volatility),
-      sharpeRatio:     this.round(sharpeRatio),
-      sortinoRatio:    this.round(sortinoRatio),
-      twr:             this.round(twr),
-      twrAnnualized:   this.round(twrAnnualized),
-      logTwr:          this.round(logTwr),
-      xirr:            this.round(xirr),
+      gainMtm:              this.round(gainMtm),
+      gainPercentMtm:       this.round(gainPercentMtm),
+      cagrMtm:              this.round(cagrMtm),
+      xirrMtm:              this.round(xirrMtm),
+      cagr:                 this.round(cagr),
+      volatility:           this.round(volatility),
+      sharpeRatio:          this.round(sharpeRatio),
+      sortinoRatio:         this.round(sortinoRatio),
+      twr:                  this.round(twr),
+      twrAnnualized:        this.round(twrAnnualized),
+      logTwr:               this.round(logTwr),
+      xirr:                 this.round(xirr),
       maxDrawdown,
       maxDrawdownDurationMonths,
-      totalDividends:  this.round(totalDividends),
-      dividendYield:   this.round(dividendYield),
-      firstBuyDate:    periodStart.toISOString().split("T")[0],
-      periodYears:     Math.round(periodYears * 10) / 10,
+      totalDividends:       this.round(totalDividends),
+      dividendYield:        this.round(dividendYield),
+      firstBuyDate:         periodStart.toISOString().split("T")[0],
+      periodYears:          Math.round(periodYears * 10) / 10,
       topHoldings,
       sectorBreakdown,
       countryBreakdown,
       monthlyData,
       monthlyTwr,
-      currencyId:      targetCurrency.uuid,
-      currencyName:    targetCurrency.currency_name,
+      currencyId:           targetCurrency.uuid,
+      currencyName:         targetCurrency.currency_name,
     };
   }
 
-  // ─── Monthly return series ────────────────────────────────────────────────
+  // ─── Modified Dietz monthly returns (FIX #2) ──────────────────────────────
 
   /**
-   * Returns an array of monthly fractional returns:
-   *   R_m = (net_inflows_this_month - net_buys_this_month) / cumulative_invested_start_of_month
+   * Computes monthly sub-period returns using the Modified Dietz method.
+   *
+   *   R_m = (EV_m − BV_m − CF_m) / (BV_m + CF_m / 2)
+   *
+   * Where:
+   *   EV_m  = end-of-month market value (from historical price data)
+   *   BV_m  = beginning-of-month MV (= previous month's EV, or initialMV for first month)
+   *   CF_m  = net external cash flow: buys add (+), sells and dividends leave (−)
+   *
+   * This correctly isolates price performance from cash injections / withdrawals.
+   * Previous formula treated every buy as a negative return for that month.
    */
-  private buildMonthlyReturns(flows: CashFlow[], today: Date): number[] {
-    const monthlyBuys    = new Map<string, number>();
-    const monthlyInflows = new Map<string, number>();
-
+  private buildMonthlyReturnsMV(
+    monthlyData:  MonthlyDataPoint[],
+    flows:        CashFlow[],
+    initialMV:    number = 0,
+  ): number[] {
+    // Net CF per month: buys add money to portfolio, sells/dividends remove it
+    const monthlyCF = new Map<string, number>();
     for (const f of flows) {
-      const key = this.monthKey(f.date);
-      if (f.type === "buy") {
-        monthlyBuys.set(key, (monthlyBuys.get(key) ?? 0) + f.amount);
-      } else {
-        monthlyInflows.set(key, (monthlyInflows.get(key) ?? 0) + f.amount);
-      }
+      const key   = this.monthKey(f.date);
+      const delta = f.type === "buy" ? f.amount : -f.amount;
+      monthlyCF.set(key, (monthlyCF.get(key) ?? 0) + delta);
     }
 
     const returns: number[] = [];
-    let cumInvested = 0;
-    let current = this.parseMonthKey(this.monthKey(flows[0].date));
-    const end   = this.parseMonthKey(this.monthKey(today));
+    let prevMV = initialMV;
 
-    while (current <= end) {
-      const key     = this.monthKey(current);
-      const buys    = monthlyBuys.get(key)    ?? 0;
-      const inflows = monthlyInflows.get(key) ?? 0;
+    for (const point of monthlyData) {
+      const cf = monthlyCF.get(point.month) ?? 0;
+      // Use real price-based market value; fall back to cost basis when prices absent
+      const endMV = point.marketValue > 0 ? point.marketValue : point.netCostBasis;
 
-      if (cumInvested > 0) {
-        returns.push((inflows - buys) / cumInvested);
+      if (prevMV > 0.01) {
+        const denom = prevMV + cf / 2;
+        if (Math.abs(denom) > 0.01) {
+          const r = (endMV - prevMV - cf) / denom;
+          // Sanity clamp: a single month should never show < -100% or > +500%
+          if (r >= -0.99 && r <= 5.0) {
+            returns.push(r);
+          }
+        }
       }
+      // When prevMV = 0, skip — no starting value to measure performance against
 
-      cumInvested += buys;
-      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      if (endMV > 0) prevMV = endMV;
     }
 
     return returns;
   }
 
-  /**
-   * Returns cumulative chain-linked TWR per month, starting at 0% on the first buy month.
-   * Used by the Comparisons page to draw a normalized performance chart.
-   */
-  private buildMonthlyTwrSeries(flows: CashFlow[], today: Date): MonthlyTwrPoint[] {
-    const monthlyBuys    = new Map<string, number>();
-    const monthlyInflows = new Map<string, number>();
+  // ─── Monthly TWR series (for Comparisons chart) ───────────────────────────
 
+  /**
+   * Cumulative chain-linked TWR per month using Modified Dietz sub-period returns.
+   * Starts at 0% on the first month where we have a beginning market value.
+   */
+  private buildMonthlyTwrSeries(
+    monthlyData:  MonthlyDataPoint[],
+    flows:        CashFlow[],
+    initialMV:    number = 0,
+  ): MonthlyTwrPoint[] {
+    const monthlyCF = new Map<string, number>();
     for (const f of flows) {
-      const key = this.monthKey(f.date);
-      if (f.type === "buy") {
-        monthlyBuys.set(key, (monthlyBuys.get(key) ?? 0) + f.amount);
-      } else {
-        monthlyInflows.set(key, (monthlyInflows.get(key) ?? 0) + f.amount);
-      }
+      const key   = this.monthKey(f.date);
+      const delta = f.type === "buy" ? f.amount : -f.amount;
+      monthlyCF.set(key, (monthlyCF.get(key) ?? 0) + delta);
     }
 
     const series: MonthlyTwrPoint[] = [];
-    let cumInvested = 0;
-    let twrFactor   = 1;
-    let current = this.parseMonthKey(this.monthKey(flows[0].date));
-    const end   = this.parseMonthKey(this.monthKey(today));
+    let prevMV    = initialMV;
+    let twrFactor = 1;
 
-    while (current <= end) {
-      const key     = this.monthKey(current);
-      const buys    = monthlyBuys.get(key)    ?? 0;
-      const inflows = monthlyInflows.get(key) ?? 0;
+    for (const point of monthlyData) {
+      const cf    = monthlyCF.get(point.month) ?? 0;
+      const endMV = point.marketValue > 0 ? point.marketValue : point.netCostBasis;
 
-      if (cumInvested > 0) {
-        const r = (inflows - buys) / cumInvested;
-        twrFactor *= (1 + r);
+      if (prevMV > 0.01) {
+        const denom = prevMV + cf / 2;
+        if (Math.abs(denom) > 0.01) {
+          const r = (endMV - prevMV - cf) / denom;
+          if (r >= -0.99 && r <= 5.0) {
+            twrFactor *= (1 + r);
+          }
+        }
       }
 
-      cumInvested += buys;
-      series.push({ month: key, cumTwr: this.round((twrFactor - 1) * 100) });
-      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+      series.push({ month: point.month, cumTwr: this.round((twrFactor - 1) * 100) });
+      if (endMV > 0) prevMV = endMV;
     }
 
     return series;
@@ -301,13 +355,12 @@ export class MetricService {
     if (monthlyReturns.length < 2) return 0;
 
     const monthlyRfr = RISK_FREE_RATE / 12;
-    // Downside deviation: semi-deviation of returns below risk-free (annualized)
     const squaredDownside = monthlyReturns
       .map(r => Math.min(r - monthlyRfr, 0) ** 2)
       .reduce((s, v) => s + v, 0);
 
     const downsideDev = Math.sqrt(squaredDownside / monthlyReturns.length) * Math.sqrt(12);
-    if (downsideDev < 0.0001) return cagrPct > 0 ? 3 : 0; // no downside → very high ratio
+    if (downsideDev < 0.0001) return cagrPct > 0 ? 3 : 0;
 
     return (cagrPct / 100 - RISK_FREE_RATE) / downsideDev;
   }
@@ -317,7 +370,6 @@ export class MetricService {
   private computeTWR(monthlyReturns: number[], periodYears: number): { twr: number; twrAnnualized: number; logTwr: number } {
     if (monthlyReturns.length === 0) return { twr: 0, twrAnnualized: 0, logTwr: 0 };
 
-    // Chain-linked: TWR_factor = Π(1 + R_m)
     const twrFactor = monthlyReturns.reduce((prod, r) => prod * (1 + r), 1);
     const twr       = (twrFactor - 1) * 100;
 
@@ -325,19 +377,23 @@ export class MetricService {
       ? (Math.pow(Math.max(twrFactor, 1e-10), 1 / periodYears) - 1) * 100
       : twr;
 
-    // Continuous (log) return: ln(TWR_factor)
     const logTwr = twrFactor > 0 ? Math.log(twrFactor) * 100 : 0;
 
     return { twr, twrAnnualized, logTwr };
   }
 
-  // ─── XIRR ─────────────────────────────────────────────────────────────────
+  // ─── XIRR (FIX #3) ────────────────────────────────────────────────────────
 
+  /**
+   * Newton-Raphson XIRR with:
+   *   • Upper clamp at r = 100 (10 000%) to prevent divergence to +∞
+   *   • Lower clamp at r = -0.999 (original)
+   *   • Convergence check: final NPV must be < 1% of largest cash flow
+   */
   private computeXIRR(flows: CashFlow[]): number {
     if (flows.length < 2) return 0;
 
     const firstDate = flows[0].date.getTime();
-    // Build (days, amount) pairs: outflows are negative, inflows positive
     const cf = flows.map(f => ({
       days:   (f.date.getTime() - firstDate) / 86_400_000,
       amount: f.type === "buy" ? -f.amount : f.amount,
@@ -346,26 +402,34 @@ export class MetricService {
     const npv  = (r: number) => cf.reduce((s, { days, amount }) => s + amount / Math.pow(1 + r, days / 365), 0);
     const dnpv = (r: number) => cf.reduce((s, { days, amount }) => s - (days / 365) * amount / Math.pow(1 + r, days / 365 + 1), 0);
 
-    // Newton-Raphson starting from 10 %
     let r = 0.10;
     for (let i = 0; i < 100; i++) {
-      const f  = npv(r);
-      const df = dnpv(r);
-      if (Math.abs(df) < 1e-12) break;
-      const rNew = r - f / df;
-      if (!isFinite(rNew)) break;
+      const fv  = npv(r);
+      const dfv = dnpv(r);
+      if (Math.abs(dfv) < 1e-12) break;
+      const rNew = r - fv / dfv;
+      if (!isFinite(rNew) || isNaN(rNew)) break;
       if (Math.abs(rNew - r) < 1e-8) { r = rNew; break; }
-      r = Math.max(rNew, -0.999); // prevent divergence
+      // Clamp both bounds to prevent divergence
+      r = Math.max(Math.min(rNew, 100.0), -0.999);
     }
 
-    return isFinite(r) ? r * 100 : 0;
+    // Verify convergence: NPV at solution must be close to zero
+    const cashScale = Math.max(...cf.map(c => Math.abs(c.amount)));
+    const finalNpv  = npv(r);
+    if (!isFinite(r) || Math.abs(finalNpv) > cashScale * 0.01) return 0;
+
+    return r * 100;
   }
 
-  // ─── Drawdown ────────────────────────────────────────────────────────────
+  // ─── Drawdown (FIX #4) ───────────────────────────────────────────────────
 
   /**
-   * Computes max peak-to-trough drawdown on the realized-value curve
-   * (invested + netGain) and its duration in months.
+   * Max peak-to-trough drawdown measured on the portfolio's MARKET VALUE.
+   *
+   * Previous version used `invested + netGain = cumReturned` which is monotonically
+   * increasing (dividends + sell proceeds only grow) → always 0% drawdown.
+   * Now uses `monthlyData[i].marketValue` (real price-based value).
    */
   private computeDrawdown(monthlyData: MonthlyDataPoint[]): {
     maxDrawdown: number;
@@ -373,19 +437,24 @@ export class MetricService {
   } {
     if (monthlyData.length < 2) return { maxDrawdown: 0, maxDrawdownDurationMonths: 0 };
 
-    let peak            = -Infinity;
-    let maxDD           = 0;
-    let ddStartIdx      = -1;
-    let maxDDDuration   = 0;
+    let peak          = -Infinity;
+    let maxDD         = 0;
+    let ddStartIdx    = -1;
+    let maxDDDuration = 0;
 
     for (let i = 0; i < monthlyData.length; i++) {
-      const val = monthlyData[i].invested + monthlyData[i].netGain;
+      // Use real market value; fall back to cost basis of remaining positions
+      const val = monthlyData[i].marketValue > 0
+        ? monthlyData[i].marketValue
+        : monthlyData[i].netCostBasis;
+
+      if (val <= 0) continue; // skip months without valid data (no prices yet)
 
       if (val >= peak) {
         peak       = val;
-        ddStartIdx = i; // potential drawdown starts here
+        ddStartIdx = i;
       } else {
-        const dd = peak > 0 ? (peak - val) / peak : 0;
+        const dd = (peak - val) / peak;
         if (dd > maxDD) {
           maxDD         = dd;
           maxDDDuration = i - ddStartIdx;
@@ -394,7 +463,7 @@ export class MetricService {
     }
 
     return {
-      maxDrawdown:              this.round(maxDD * 100),
+      maxDrawdown:               this.round(maxDD * 100),
       maxDrawdownDurationMonths: maxDDDuration,
     };
   }
@@ -424,7 +493,6 @@ export class MetricService {
       }
     }
 
-    // Collect all month keys for the full range
     const monthKeys: string[] = [];
     const start = this.parseMonthKey(this.monthKey(flows[0].date));
     const end   = this.parseMonthKey(this.monthKey(today));
@@ -434,7 +502,6 @@ export class MetricService {
       temp.setMonth(temp.getMonth() + 1);
     }
 
-    // Compute real historical market values using stored prices
     const marketValues = await this.computeHistoricalMarketValues(buys, sells, monthKeys, currencyId);
 
     const points: MonthlyDataPoint[] = [];
@@ -465,13 +532,6 @@ export class MetricService {
 
   // ─── Historical market value computation ──────────────────────────────────
 
-  /**
-   * For each month in monthKeys, compute the real portfolio market value:
-   *   Σ(netSharesHeld[asset] × closestPrice[asset] × forexRate)
-   *
-   * Prices are batch-loaded from assetprices per asset to avoid N×M DB queries.
-   * Returns 0 for months where no price data is available.
-   */
   private async computeHistoricalMarketValues(
     buys: UserAssetBuy[],
     sells: UserAssetSell[],
@@ -480,16 +540,15 @@ export class MetricService {
   ): Promise<Map<string, number>> {
     const result = new Map<string, number>();
 
-    // ── 1. Resolve assets and group buy/sell records per asset UUID ───────────
     interface AssetTracker {
       baseCurrencyUuid: string;
       buys:   Array<{ date: Date; shares: number }>;
       sells:  Array<{ date: Date; shares: number }>;
-      prices: Array<{ date: Date; price: number }>; // sorted ASC
+      prices: Array<{ date: Date; price: number }>;
     }
 
     const trackerMap  = new Map<string, AssetTracker>();
-    const assetCache  = new Map<string, Asset | null>(); // uuid or "name:X" → Asset
+    const assetCache  = new Map<string, Asset | null>();
 
     const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
       const cacheKey = assetUuid ?? `name:${companyName}`;
@@ -524,17 +583,13 @@ export class MetricService {
       trackerMap.get(asset.uuid)!.sells.push({ date: new Date(sell.sell_date), shares: sell.asset_sell_share });
     }
 
-    // ── 2. Batch-load prices for each asset ───────────────────────────────────
     for (const [uuid, tracker] of trackerMap) {
       const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
       tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
-      // already sorted ASC by the repo query
     }
 
-    // ── 3. Compute market value per month ─────────────────────────────────────
     for (const monthKey of monthKeys) {
       const [year, month] = monthKey.split("-").map(Number);
-      // Last instant of the month in UTC: day 0 of month+1 (0-indexed in JS) = last day of month (1-indexed)
       const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
       let totalMarketValue = 0;
@@ -591,12 +646,6 @@ export class MetricService {
       }));
   }
 
-  /**
-   * Unified holding breakdown: computes topHoldings, sectorBreakdown, and countryBreakdown
-   * all in one pass using current market value (shares × latest price).
-   * Falls back gracefully: topHoldings = [] when no price data (caller uses cost basis instead);
-   * sector/country breakdowns are always returned (empty when no prices).
-   */
   private async computeHoldingsBreakdown(
     buys: UserAssetBuy[],
     sells: UserAssetSell[],
@@ -621,7 +670,6 @@ export class MetricService {
       if (assetCache.has(key)) return assetCache.get(key)!;
       let asset: Asset | null = null;
       if (assetUuid) {
-        // Load with sector + country relations so we get the names directly
         asset = await this.assetRepository.getAssetWithSectorAndCountry(assetUuid);
       } else if (companyName) {
         const found = await this.assetRepository.getAssetFromOfficialName(companyName)
@@ -673,7 +721,6 @@ export class MetricService {
 
     const holdings = Array.from(holdingMap.values()).filter(h => h.marketValue > 0);
 
-    // ── Top holdings ───────────────────────────────────────────────────────────
     const topHoldings: TopHolding[] = holdings
       .sort((a, b) => b.marketValue - a.marketValue)
       .slice(0, 6)
@@ -683,7 +730,6 @@ export class MetricService {
         allocation:  this.round((h.marketValue / totalMv) * 100),
       }));
 
-    // ── Sector breakdown ───────────────────────────────────────────────────────
     const sectorMap = new Map<string, number>();
     for (const h of holdings) {
       const key = h.sectorName ?? "Unknown";
@@ -697,7 +743,6 @@ export class MetricService {
         allocation: this.round((value / totalMv) * 100),
       }));
 
-    // ── Country breakdown ──────────────────────────────────────────────────────
     const countryMap = new Map<string, number>();
     for (const h of holdings) {
       const key = h.countryName ?? "Unknown";
