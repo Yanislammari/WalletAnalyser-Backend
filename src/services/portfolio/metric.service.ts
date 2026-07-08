@@ -1,11 +1,13 @@
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
-import { Currency } from "../../db_schema";
+import { Asset, Currency } from "../../db_schema";
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
-import { MetricResponseDto, TopHolding, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
+import { AssetPriceRepository } from "../../repositories/asset/asset_price.repository";
+import { AssetRepository } from "../../repositories/asset/asset.repository";
+import { MetricResponseDto, TopHolding, AllocationItem, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
 import { CurrenciesRepository } from "../../repositories";
 
 const RISK_FREE_RATE = 0.04; // 4 % annual
@@ -20,17 +22,21 @@ interface CashFlow {
 }
 
 export class MetricService {
-  private readonly buyRepository:      UserAssetBuyRepository;
-  private readonly sellRepository:     UserAssetSellRepository;
-  private readonly dividendRepository: UserAssetDividendRepository;
+  private readonly buyRepository:        UserAssetBuyRepository;
+  private readonly sellRepository:       UserAssetSellRepository;
+  private readonly dividendRepository:   UserAssetDividendRepository;
   private readonly currenciesRepository: CurrenciesRepository;
+  private readonly assetPriceRepository: AssetPriceRepository;
+  private readonly assetRepository:      AssetRepository;
   private rateCache: Map<string, number> = new Map();
 
   constructor() {
-    this.buyRepository      = new UserAssetBuyRepository();
-    this.sellRepository     = new UserAssetSellRepository();
-    this.dividendRepository = new UserAssetDividendRepository();
+    this.buyRepository        = new UserAssetBuyRepository();
+    this.sellRepository       = new UserAssetSellRepository();
+    this.dividendRepository   = new UserAssetDividendRepository();
     this.currenciesRepository = new CurrenciesRepository();
+    this.assetPriceRepository = new AssetPriceRepository();
+    this.assetRepository      = new AssetRepository();
   }
 
   // ─── Public entry point ────────────────────────────────────────────────────
@@ -105,7 +111,7 @@ export class MetricService {
     // Period start = fromDate if filtered, else the actual first buy
     const firstBuy  = flows.find(f => f.type === "buy")!;
     const periodStart = filterFrom ?? (firstBuy?.date ?? allTimeFirstBuy);
-    const periodYears = (today.getTime() - periodStart.getTime()) / (365.25 * 24 * 3600 * 1000);
+    const periodYears = (365.25 * 24 * 3600 * 1000) / (today.getTime() - periodStart.getTime());
 
     // ── CAGR ──────────────────────────────────────────────────────────────
     const cagr = periodYears > 0.01
@@ -136,11 +142,13 @@ export class MetricService {
     // ── Dividend yield ─────────────────────────────────────────────────────
     const dividendYield = totalInvested > 0 ? (totalDividends / totalInvested) * 100 : 0;
 
-    // ── Top holdings ───────────────────────────────────────────────────────
-    const topHoldings = this.computeTopHoldings(flows, totalInvested);
+    // ── Holdings breakdown (market value; falls back to cost basis if no prices)
+    const { topHoldings: topHoldingsMv, sectorBreakdown, countryBreakdown } =
+      await this.computeHoldingsBreakdown(buys, sells, currencyId);
+    const topHoldings = topHoldingsMv.length > 0 ? topHoldingsMv : this.computeTopHoldings(flows, totalInvested);
 
     // ── Monthly data for chart ─────────────────────────────────────────────
-    const monthlyData = this.computeMonthlyData(flows, today);
+    const monthlyData = await this.computeMonthlyData(flows, buys, sells, currencyId, today);
 
     // ── Drawdown ───────────────────────────────────────────────────────────
     const { maxDrawdown, maxDrawdownDurationMonths } = this.computeDrawdown(monthlyData);
@@ -188,6 +196,8 @@ export class MetricService {
       firstBuyDate:    periodStart.toISOString().split("T")[0],
       periodYears:     Math.round(periodYears * 10) / 10,
       topHoldings,
+      sectorBreakdown,
+      countryBreakdown,
       monthlyData,
       monthlyTwr,
       currencyId:      targetCurrency.uuid,
@@ -391,9 +401,16 @@ export class MetricService {
 
   // ─── Monthly data for chart ───────────────────────────────────────────────
 
-  private computeMonthlyData(flows: CashFlow[], today: Date): MonthlyDataPoint[] {
+  private async computeMonthlyData(
+    flows: CashFlow[],
+    buys: UserAssetBuy[],
+    sells: UserAssetSell[],
+    currencyId: string,
+    today: Date
+  ): Promise<MonthlyDataPoint[]> {
     const monthlyBuys    = new Map<string, number>();
     const monthlyInflows = new Map<string, number>();
+    const monthlySells   = new Map<string, number>();
 
     for (const f of flows) {
       const key = this.monthKey(f.date);
@@ -402,29 +419,153 @@ export class MetricService {
       } else {
         monthlyInflows.set(key, (monthlyInflows.get(key) ?? 0) + f.amount);
       }
+      if (f.type === "sell") {
+        monthlySells.set(key, (monthlySells.get(key) ?? 0) + f.amount);
+      }
     }
+
+    // Collect all month keys for the full range
+    const monthKeys: string[] = [];
+    const start = this.parseMonthKey(this.monthKey(flows[0].date));
+    const end   = this.parseMonthKey(this.monthKey(today));
+    const temp  = new Date(start);
+    while (temp <= end) {
+      monthKeys.push(this.monthKey(temp));
+      temp.setMonth(temp.getMonth() + 1);
+    }
+
+    // Compute real historical market values using stored prices
+    const marketValues = await this.computeHistoricalMarketValues(buys, sells, monthKeys, currencyId);
 
     const points: MonthlyDataPoint[] = [];
     let cumInvested = 0;
     let cumReturned = 0;
-    let current = this.parseMonthKey(this.monthKey(flows[0].date));
-    const end   = this.parseMonthKey(this.monthKey(today));
+    let cumSells    = 0;
+    let current = new Date(start);
 
     while (current <= end) {
       const key = this.monthKey(current);
       cumInvested += monthlyBuys.get(key)    ?? 0;
       cumReturned += monthlyInflows.get(key) ?? 0;
+      cumSells    += monthlySells.get(key)   ?? 0;
 
       points.push({
-        month:   key,
-        netGain: this.round(cumReturned - cumInvested),
-        invested: this.round(cumInvested),
+        month:        key,
+        netGain:      this.round(cumReturned - cumInvested),
+        invested:     this.round(cumInvested),
+        netCostBasis: this.round(Math.max(0, cumInvested - cumSells)),
+        marketValue:  this.round(marketValues.get(key) ?? 0),
       });
 
       current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
     }
 
     return points;
+  }
+
+  // ─── Historical market value computation ──────────────────────────────────
+
+  /**
+   * For each month in monthKeys, compute the real portfolio market value:
+   *   Σ(netSharesHeld[asset] × closestPrice[asset] × forexRate)
+   *
+   * Prices are batch-loaded from assetprices per asset to avoid N×M DB queries.
+   * Returns 0 for months where no price data is available.
+   */
+  private async computeHistoricalMarketValues(
+    buys: UserAssetBuy[],
+    sells: UserAssetSell[],
+    monthKeys: string[],
+    currencyId: string
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+
+    // ── 1. Resolve assets and group buy/sell records per asset UUID ───────────
+    interface AssetTracker {
+      baseCurrencyUuid: string;
+      buys:   Array<{ date: Date; shares: number }>;
+      sells:  Array<{ date: Date; shares: number }>;
+      prices: Array<{ date: Date; price: number }>; // sorted ASC
+    }
+
+    const trackerMap  = new Map<string, AssetTracker>();
+    const assetCache  = new Map<string, Asset | null>(); // uuid or "name:X" → Asset
+
+    const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
+      const cacheKey = assetUuid ?? `name:${companyName}`;
+      if (assetCache.has(cacheKey)) return assetCache.get(cacheKey)!;
+      let asset: Asset | null = null;
+      if (assetUuid) {
+        asset = await this.assetRepository.getAssetFromUUID(assetUuid);
+      } else if (companyName) {
+        asset = await this.assetRepository.getAssetFromOfficialName(companyName)
+          ?? await this.assetRepository.getAssetFromTicker(companyName);
+      }
+      assetCache.set(cacheKey, asset);
+      return asset;
+    };
+
+    for (const buy of buys) {
+      if (!buy.asset_buy_share) continue;
+      const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
+      if (!asset?.uuid || !asset?.base_currency_uuid) continue;
+
+      if (!trackerMap.has(asset.uuid)) {
+        trackerMap.set(asset.uuid, { baseCurrencyUuid: asset.base_currency_uuid, buys: [], sells: [], prices: [] });
+      }
+      trackerMap.get(asset.uuid)!.buys.push({ date: new Date(buy.buy_date), shares: buy.asset_buy_share });
+    }
+
+    for (const sell of sells) {
+      if (!sell.asset_sell_share) continue;
+      const asset = await resolveAsset(sell.asset_uuid, sell.company_name);
+      if (!asset?.uuid || !trackerMap.has(asset.uuid)) continue;
+
+      trackerMap.get(asset.uuid)!.sells.push({ date: new Date(sell.sell_date), shares: sell.asset_sell_share });
+    }
+
+    // ── 2. Batch-load prices for each asset ───────────────────────────────────
+    for (const [uuid, tracker] of trackerMap) {
+      const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
+      tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
+      // already sorted ASC by the repo query
+    }
+
+    // ── 3. Compute market value per month ─────────────────────────────────────
+    for (const monthKey of monthKeys) {
+      const [year, month] = monthKey.split("-").map(Number);
+      // Last instant of the month in UTC: day 0 of month+1 (0-indexed in JS) = last day of month (1-indexed)
+      const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+
+      let totalMarketValue = 0;
+
+      for (const [, tracker] of trackerMap) {
+        const sharesHeld =
+          tracker.buys.filter(b  => b.date  <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
+          tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
+
+        if (sharesHeld <= 0.0001) continue;
+
+        const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
+        if (price === null) continue;
+
+        const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
+        totalMarketValue += sharesHeld * price * rate;
+      }
+
+      result.set(monthKey, totalMarketValue);
+    }
+
+    return result;
+  }
+
+  private findPriceAtOrBefore(prices: Array<{ date: Date; price: number }>, targetDate: Date): number | null {
+    let result: number | null = null;
+    for (const p of prices) {
+      if (p.date <= targetDate) result = p.price;
+      else break;
+    }
+    return result;
   }
 
   // ─── Top holdings ─────────────────────────────────────────────────────────
@@ -448,6 +589,129 @@ export class MetricService {
         invested:    this.round(invested),
         allocation:  totalInvested > 0 ? this.round((invested / totalInvested) * 100) : 0,
       }));
+  }
+
+  /**
+   * Unified holding breakdown: computes topHoldings, sectorBreakdown, and countryBreakdown
+   * all in one pass using current market value (shares × latest price).
+   * Falls back gracefully: topHoldings = [] when no price data (caller uses cost basis instead);
+   * sector/country breakdowns are always returned (empty when no prices).
+   */
+  private async computeHoldingsBreakdown(
+    buys: UserAssetBuy[],
+    sells: UserAssetSell[],
+    currencyId: string
+  ): Promise<{ topHoldings: TopHolding[]; sectorBreakdown: AllocationItem[]; countryBreakdown: AllocationItem[] }> {
+    const empty = { topHoldings: [], sectorBreakdown: [], countryBreakdown: [] };
+
+    interface Holding {
+      companyName:      string;
+      sectorName:       string | null;
+      countryName:      string | null;
+      baseCurrencyUuid: string;
+      shares:           number;
+      marketValue:      number;
+    }
+
+    const holdingMap = new Map<string, Holding>();
+    const assetCache = new Map<string, Asset | null>();
+
+    const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
+      const key = assetUuid ?? `name:${companyName}`;
+      if (assetCache.has(key)) return assetCache.get(key)!;
+      let asset: Asset | null = null;
+      if (assetUuid) {
+        // Load with sector + country relations so we get the names directly
+        asset = await this.assetRepository.getAssetWithSectorAndCountry(assetUuid);
+      } else if (companyName) {
+        const found = await this.assetRepository.getAssetFromOfficialName(companyName)
+          ?? await this.assetRepository.getAssetFromTicker(companyName);
+        asset = found ? await this.assetRepository.getAssetWithSectorAndCountry(found.uuid) : null;
+      }
+      assetCache.set(key, asset);
+      return asset;
+    };
+
+    for (const buy of buys) {
+      if (!buy.asset_buy_share) continue;
+      const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
+      if (!asset?.uuid || !asset.base_currency_uuid) continue;
+
+      if (!holdingMap.has(asset.uuid)) {
+        holdingMap.set(asset.uuid, {
+          companyName:      asset.official_name ?? buy.company_name ?? asset.uuid,
+          sectorName:       (asset.sector as any)?.sector_name ?? null,
+          countryName:      (asset.country as any)?.country_name ?? null,
+          baseCurrencyUuid: asset.base_currency_uuid,
+          shares:           0,
+          marketValue:      0,
+        });
+      }
+      holdingMap.get(asset.uuid)!.shares += buy.asset_buy_share;
+    }
+
+    for (const sell of sells) {
+      if (!sell.asset_sell_share) continue;
+      const asset = await resolveAsset(sell.asset_uuid, sell.company_name);
+      if (!asset?.uuid || !holdingMap.has(asset.uuid)) continue;
+      holdingMap.get(asset.uuid)!.shares -= sell.asset_sell_share;
+    }
+
+    const today = new Date();
+    let totalMv = 0;
+
+    for (const [uuid, holding] of holdingMap) {
+      if (holding.shares <= 0.0001) { holdingMap.delete(uuid); continue; }
+      const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(uuid);
+      if (!latestPrice) { holdingMap.delete(uuid); continue; }
+      const rate = await this.getRate(holding.baseCurrencyUuid, currencyId, today);
+      holding.marketValue = holding.shares * latestPrice.asset_price * rate;
+      totalMv += holding.marketValue;
+    }
+
+    if (totalMv === 0) return empty;
+
+    const holdings = Array.from(holdingMap.values()).filter(h => h.marketValue > 0);
+
+    // ── Top holdings ───────────────────────────────────────────────────────────
+    const topHoldings: TopHolding[] = holdings
+      .sort((a, b) => b.marketValue - a.marketValue)
+      .slice(0, 6)
+      .map(h => ({
+        companyName: h.companyName,
+        invested:    this.round(h.marketValue),
+        allocation:  this.round((h.marketValue / totalMv) * 100),
+      }));
+
+    // ── Sector breakdown ───────────────────────────────────────────────────────
+    const sectorMap = new Map<string, number>();
+    for (const h of holdings) {
+      const key = h.sectorName ?? "Unknown";
+      sectorMap.set(key, (sectorMap.get(key) ?? 0) + h.marketValue);
+    }
+    const sectorBreakdown: AllocationItem[] = Array.from(sectorMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({
+        name,
+        value:      this.round(value),
+        allocation: this.round((value / totalMv) * 100),
+      }));
+
+    // ── Country breakdown ──────────────────────────────────────────────────────
+    const countryMap = new Map<string, number>();
+    for (const h of holdings) {
+      const key = h.countryName ?? "Unknown";
+      countryMap.set(key, (countryMap.get(key) ?? 0) + h.marketValue);
+    }
+    const countryBreakdown: AllocationItem[] = Array.from(countryMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({
+        name,
+        value:      this.round(value),
+        allocation: this.round((value / totalMv) * 100),
+      }));
+
+    return { topHoldings, sectorBreakdown, countryBreakdown };
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -500,7 +764,7 @@ export class MetricService {
       maxDrawdown: 0, maxDrawdownDurationMonths: 0,
       totalDividends: 0, dividendYield: 0,
       firstBuyDate: null, periodYears: 0,
-      topHoldings: [], monthlyData: [], monthlyTwr: [],
+      topHoldings: [], sectorBreakdown: [], countryBreakdown: [], monthlyData: [], monthlyTwr: [],
       currencyId: currency.uuid, currencyName: currency.currency_name,
     };
   }

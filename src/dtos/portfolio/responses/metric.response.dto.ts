@@ -1,13 +1,21 @@
 export interface TopHolding {
   companyName: string;
   invested: number;
-  allocation: number; // % of total invested
+  allocation: number; // % of total market value (or invested if no prices)
+}
+
+export interface AllocationItem {
+  name: string;        // sector or country name
+  value: number;       // market value in target currency
+  allocation: number;  // % of total portfolio market value
 }
 
 export interface MonthlyDataPoint {
-  month: string;       // "2024-01"
-  netGain: number;     // cumulative net gain at end of month (realized)
-  invested: number;    // cumulative invested at end of month
+  month: string;           // "2024-01"
+  netGain: number;         // cumulative net gain at end of month (realized)
+  invested: number;        // cumulative invested at end of month
+  netCostBasis: number;    // cumulative buys - cumulative sells (capital still deployed)
+  marketValue: number;     // real portfolio market value = Σ(shares × price) at end of month; 0 if no price data
 }
 
 export interface DrawdownPoint {
@@ -58,6 +66,8 @@ export interface MetricResponseDto {
 
   // Breakdown
   topHoldings: TopHolding[];
+  sectorBreakdown: AllocationItem[];
+  countryBreakdown: AllocationItem[];
   monthlyData: MonthlyDataPoint[];
   monthlyTwr: MonthlyTwrPoint[];   // chain-linked cumulative TWR per month (for comparison chart)
 

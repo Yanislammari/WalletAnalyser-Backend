@@ -7,6 +7,8 @@ import { AssetShort, MetaDataAssets, MetaDataAssetShort } from "../../dtos";
 import { AssetPriceRepository } from "../../repositories";
 import { AssetDividendRepository } from "../../repositories/asset/asset.dividend.repository";
 import { CurrenciesRepository } from "../../repositories/currencies/currencies.repository";
+import { SectorRepository } from "../../repositories/sector/sector.repository";
+import { CountryRepository } from "../../repositories/country/country.repository";
 import { YahooFinanceService } from "../yahoo.finance.service";
 import { AssetMapper } from "../../mappers/asset.mapper";
 import { AssetResponseDto } from "../../dtos/asset/responses/asset.response.dto";
@@ -18,16 +20,20 @@ export class AssetService {
   private readonly assetPriceRepository: AssetPriceRepository;
   private readonly assetDividendRepository: AssetDividendRepository;
   private readonly currenciesRepository: CurrenciesRepository;
+  private readonly sectorRepository: SectorRepository;
+  private readonly countryRepository: CountryRepository;
   private readonly yahooFinanceService: YahooFinanceService;
   private readonly assetMapper: AssetMapper;
 
   constructor() {
-    this.assetRepository = new AssetRepository();
+    this.assetRepository      = new AssetRepository();
     this.assetPriceRepository = new AssetPriceRepository();
     this.assetDividendRepository = new AssetDividendRepository();
     this.currenciesRepository = new CurrenciesRepository();
-    this.yahooFinanceService = new YahooFinanceService();
-    this.assetMapper = new AssetMapper();
+    this.sectorRepository     = new SectorRepository();
+    this.countryRepository    = new CountryRepository();
+    this.yahooFinanceService  = new YahooFinanceService();
+    this.assetMapper          = new AssetMapper();
   }
 
   public async getAssets(type?: string, offset = 0, limit = 100, search?: string): Promise<MetaDataAssets> {
@@ -145,6 +151,17 @@ export class AssetService {
       base_currency_uuid: currencyUuid,
       asset_type: quote.assetType,
     });
+
+    // Resolve and store sector + country from Yahoo Finance
+    const sectorUuid  = quote.sector
+      ? (await this.sectorRepository.getSectorByName(quote.sector))?.uuid ?? null
+      : null;
+    const countryUuid = quote.country
+      ? (await this.countryRepository.getCountryByName(quote.country))?.uuid ?? null
+      : null;
+    if (sectorUuid || countryUuid) {
+      await this.assetRepository.patchSectorAndCountry(asset.uuid, sectorUuid, countryUuid);
+    }
 
     await this.syncCustomAssetDividends(asset.uuid, quote.ticker);
 

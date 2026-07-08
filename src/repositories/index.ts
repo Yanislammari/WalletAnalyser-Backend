@@ -16,3 +16,4 @@ export * from "./portfolio/portfolio.repository";
 export * from "./portfolio/user.asset.buy.repository";
 export * from "./portfolio/user.asset.sell.repository";
 export * from "./portfolio/user.asset.dividend.repository";
+export * from "./portfolio/import_history.repository";

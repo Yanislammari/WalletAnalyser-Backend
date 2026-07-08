@@ -69,6 +69,11 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
     }
   }
 
+  async getAllPricesForAsset(assetUuid: string): Promise<AssetPrice[]> {
+    return this.model.findAll({
+      where: { [attributesAssetPrice.asset_uuid]: assetUuid },
+      order: [[attributesAssetPrice.asset_price_date, "ASC"]],
+    });
   
   async getClosestPricesBeforeOrAtBulk(asset_uuids: string[], targetDate: Date) {
     const results = await sequelize.query(
