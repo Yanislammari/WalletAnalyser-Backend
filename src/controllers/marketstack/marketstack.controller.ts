@@ -1,10 +1,6 @@
-import dotenv from "dotenv";
 import { AssetPriceCompletModel, AssetPriceModel } from "../../models";
 import { AssetType, CompanyTickerDto, TickerInfoDto } from "../../dtos";
-
-dotenv.config();
-const apiKey = process.env.API_MARKETSTACK_KEY;
-const baseUrl = process.env.API_MARKETSTACK_URL;
+import { API_MARKETSTACK_URL as baseUrl, API_MARKETSTACK_KEY as apiKey } from "../../constants/env";
 
 export class MarketstackController {
   constructor() {}

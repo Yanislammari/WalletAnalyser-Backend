@@ -19,3 +19,5 @@ export const FRONTEND_URL_PROD: string = requireEnv("FRONTEND_URL_PROD");
 export const APPINSIGHTS_CONNECTION_STRING: string = requireEnv("APPINSIGHTS_CONNECTION_STRING");
 export const BASE_URL: string = requireEnv("BASE_URL");
 export const PYTHON_BASE_URL: string = requireEnv("PYTHON_BASE_URL");
+export const API_MARKETSTACK_URL: string = requireEnv("API_MARKETSTACK_URL");
+export const API_MARKETSTACK_KEY: string = requireEnv("API_MARKETSTACK_KEY");
