@@ -25,10 +25,9 @@ export class StartupSyncService {
   // Dividends are fetched on-the-fly when a buy is added/edited/deleted.
   public async syncAll(): Promise<void> {
     console.log("[StartupSync] Starting background sync...");
-    await Promise.all([
-      this.syncForexRates(),
-      this.syncPrices(),
-    ]);
+    // Sequential (not parallel) to avoid connection spikes on the shared B1ms pool.
+    await this.syncForexRates();
+    await this.syncPrices();
     console.log("[StartupSync] Background sync complete.");
   }
 

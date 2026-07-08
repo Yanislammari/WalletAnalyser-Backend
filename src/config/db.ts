@@ -17,16 +17,18 @@ export const sequelize = new Sequelize(DATABASE_URL, {
   },
   logging: false,
   pool: {
-    max: 10,
+    max: 3,
     min: 0,
     acquire: 30000,
-    idle: 10000,
+    idle: 5000,
   },
 });
 
 export async function startOfDatabase() {
+  // sync({ force: false }) = CREATE TABLE IF NOT EXISTS only.
+  // Does NOT inspect or alter existing columns — safe in prod, no connection spike.
   await sequelize
-    .sync({ alter: true })
+    .sync({ force: false })
     .then(() => {
       console.log("Database and tables have been synchronized");
     })
