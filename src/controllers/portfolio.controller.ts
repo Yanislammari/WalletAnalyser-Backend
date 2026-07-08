@@ -362,7 +362,6 @@ class PortfolioController {
       if (!currencyId) {
         return res.status(400).json({ message: "Portfolio has no base currency set." });
       }
-
       // Fetch current market value of held positions (all-time view only).
       // For filtered views (fromDate set), positions bought outside the window
       // would skew the MTM calculation, so we skip it.
@@ -373,7 +372,6 @@ class PortfolioController {
           if (total.portfolioMarketValue > 0) portfolioMarketValue = total.portfolioMarketValue;
         } catch { /* non-critical — metrics still work without it */ }
       }
-
       const response: MetricResponseDto = await this.metricService.getMetrics(portfolioId, currencyId, fromDate, portfolioMarketValue);
       return res.status(200).json(response);
     }

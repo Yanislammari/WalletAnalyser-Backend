@@ -64,4 +64,13 @@ export class CountryRepository extends BaseRepository<Country> {
       throw error;
     }
   }
+
+  async getByIds(uuids: string[]) {
+    if (uuids.length === 0) return [];
+    return Country.findAll({
+      where: {
+        uuid: { [Op.in]: uuids },
+      },
+    });
+  }
 }

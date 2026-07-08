@@ -16,6 +16,12 @@ export const sequelize = new Sequelize(DATABASE_URL, {
     dateStrings: true,
   },
   logging: false,
+  pool: {
+    max: 90,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
 });
 
 export async function startOfDatabase() {

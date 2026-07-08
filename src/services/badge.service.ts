@@ -29,7 +29,7 @@ export class BadgeService {
     }
     const timeLeft = user.gift_date ? user.gift_date.getTime() - Date.now() : -1
     let newBadges: UserBadge[] = [];
-    let nextGiftDate: number | null = null;
+    let nextGiftDate: number | null = user.gift_date.getTime();
 
     if (timeLeft < 0) {
       ({ newBadges, nextGiftDate } = await this.getNewBadges(user_id));
