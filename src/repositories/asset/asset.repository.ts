@@ -9,6 +9,11 @@ export class AssetRepository extends BaseRepository<Asset> {
     super(Asset)
   }
 
+  async countAll(where : any) : Promise<number>{
+    const length = await Asset.count({ where });
+    return length;
+  }
+
   async getAllAssets(): Promise<Asset[]> {
     try {
       const assets = await Asset.findAll();

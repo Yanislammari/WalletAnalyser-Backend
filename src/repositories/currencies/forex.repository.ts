@@ -1,7 +1,8 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import { attributesCurrency, attributesForex, attributesForexRate, Currency, Forex, ForexRate } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 import { CurrenciesRepository } from "./currencies.repository";
+import { sequelize } from "../../config";
 
 interface DateAndLenght {
   latestDate : Date
@@ -15,6 +16,34 @@ export class ForexRepository extends BaseRepository<Forex> {
   constructor() {
     super(Forex);
     this.currenciesRepository = new CurrenciesRepository();
+  }
+
+  async countAll(search: string): Promise<number> {
+    const length = await Forex.count({
+      include: [
+        {
+          association: "baseCurrency", // must match the alias used in your Forex.belongsTo(...) association
+          attributes: [],
+          required: false,
+        },
+        {
+          association: "quoteCurrency",
+          attributes: [],
+          required: false,
+        },
+      ],
+      where: search
+        ? {
+            [Op.or]: [
+              { "$baseCurrency.currency_name$": { [Op.startsWith]: search } },
+              { "$quoteCurrency.currency_name$": { [Op.startsWith]: search } },
+            ],
+          }
+        : undefined,
+      distinct: true,
+      col: "uuid", // or whatever Forex's primary key column is, needed so distinct counts correctly
+    });
+    return length;
   }
 
   async addForexRatesFromExcel(dates: Date[], forexRates: string[], forex: Forex, quoteCurrencyName: string) : Promise<DateAndLenght> { // est un service mais c'est plus pratique de le mettre là pour éviter des import circulaires
@@ -185,6 +214,24 @@ export class ForexRepository extends BaseRepository<Forex> {
       ],
     });
     return latestRate;
+  }
+
+  async getLatestForexRateBulk(forexUuids: string[]): Promise<Map< string, Date | null >> {
+    if (forexUuids.length === 0) return new Map();
+    const rows = await sequelize.query<{ forex_uuid: string; forex_rate_date: Date | null }>(
+      `
+        SELECT DISTINCT ON (forex_uuid) forex_uuid, forex_rate_date
+        FROM "ForexRates"
+        WHERE forex_uuid IN (:forexUuids)
+        ORDER BY forex_uuid, forex_rate_date DESC
+      `,
+      {
+        replacements: { forexUuids },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return new Map(rows.map((r) => [r.forex_uuid, r.forex_rate_date]));
   }
 
   async addForexRateToDb(forexUuid: string, date: Date, rate: number): Promise<ForexRate> {
