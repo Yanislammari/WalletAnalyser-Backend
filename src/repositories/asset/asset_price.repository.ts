@@ -69,6 +69,24 @@ export class AssetPriceRepository extends BaseRepository<AssetPrice> {
     }
   }
 
+  async getLatestAssetPrices(assetUuids: string[]): Promise<Map<string, Date | null>> {
+    if (assetUuids.length === 0) return new Map();
+    const rows = await sequelize.query<{ asset_uuid: string; asset_price_date: Date | null }>(
+      `
+        SELECT DISTINCT ON (asset_uuid) asset_uuid, asset_price_date
+        FROM "AssetPrices"
+        WHERE asset_uuid IN (:assetUuids)
+        ORDER BY asset_uuid, asset_price_date DESC
+      `,
+      {
+        replacements: { assetUuids },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    return new Map(rows.map((r) => [r.asset_uuid, r.asset_price_date]));
+  }
+
   async getAllPricesForAsset(assetUuid: string): Promise<AssetPrice[]> {
     return this.model.findAll({
       where: { [attributesAssetPrice.asset_uuid]: assetUuid },

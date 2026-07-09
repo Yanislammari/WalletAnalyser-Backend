@@ -64,22 +64,22 @@ export class AssetService {
       ],
     })
 
-    const metaDataAssets: MetaDataAssetShort[] = await Promise.all(assets.map( async (asset : Asset) => {
-      const last_update = (await this.assetPriceRepository.getLatestAssetPrice(asset.uuid))?.asset_price_date
-      return {
-        asset : {
-          uuid: asset.uuid,
-          base_currency_uuid: asset.base_currency_uuid,
-          ticker_name: asset.ticker_name,
-          official_name: asset.official_name,
-          sector_uuid: asset.sector_uuid,
-          country_uuid: asset.country_uuid,
-        },
-        last_update : last_update
-      }
-    }))
+    const assetUuids = assets.map((a) => a.uuid);
+    const latestPrices = await this.assetPriceRepository.getLatestAssetPrices(assetUuids);
 
-    const length = (await this.assetRepository.get({ where })).length
+    const metaDataAssets: MetaDataAssetShort[] = assets.map((asset) => ({
+      asset: {
+        uuid: asset.uuid,
+        base_currency_uuid: asset.base_currency_uuid,
+        ticker_name: asset.ticker_name,
+        official_name: asset.official_name,
+        sector_uuid: asset.sector_uuid,
+        country_uuid: asset.country_uuid,
+      },
+      last_update: latestPrices.get(asset.uuid) ?? undefined,
+    }));
+
+    const length = await this.assetRepository.countAll(where);
     return { length , assets :  metaDataAssets }
   }
 
