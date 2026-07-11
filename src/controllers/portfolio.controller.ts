@@ -140,13 +140,14 @@ class PortfolioController {
       const portfolioId: string = req.params.portfolioId as string;
       const assetId: string = req.query.assetId as string;
       const date: string = req.query.date as string;
+      let currencyId : string = req.query.currencyId as string;
 
       if (!assetId || !date) {
         return res.status(400).json({ message: "assetId and date query parameters are required" });
       }
 
       const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
-      const currencyId = portfolio.displayCurrencyId ?? "";
+      currencyId = currencyId ?? portfolio.displayCurrencyId;
 
       const avgPrice: number | null = await this.portfolioService.getAverageBuyPricePerShare(portfolioId, assetId, date, currencyId);
       return res.status(200).json({ averageBuyPrice: avgPrice });

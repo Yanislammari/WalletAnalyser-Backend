@@ -183,9 +183,6 @@ export class YahooFinanceService {
         interval: "1d",
       }, { validateResult: false });
       const quotes = extractQuotes(result);
-      if (quotes.length === 0) {
-        console.warn(`[YahooFinance] chart() returned 0 quotes for ${ticker} — result keys: ${result ? Object.keys(result) : 'null'}, quotes field: ${JSON.stringify(result?.quotes?.slice(0,1))}`);
-      }
       return quotes;
     }
     catch (err: unknown) {
@@ -193,11 +190,8 @@ export class YahooFinanceService {
       const validationErr = err as { result?: unknown };
       if (validationErr.result != null) {
         const quotes = extractQuotes(validationErr.result);
-        console.log(`[YahooFinance] chart() validation error for ${ticker} but recovered ${quotes.length} quotes from err.result`);
         return quotes;
       }
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[YahooFinance] chart() FAILED for ${ticker}: [${(err as any)?.constructor?.name}] ${errMsg}`);
       return [];
     }
   }
