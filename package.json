@@ -19,6 +19,7 @@
     "@microsoft/applicationinsights-web": "^3.4.1",
     "applicationinsights": "^3.14.0",
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/bcrypt": "^6.0.0",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",

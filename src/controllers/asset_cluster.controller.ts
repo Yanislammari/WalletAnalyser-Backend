@@ -11,7 +11,7 @@ class AssetClusterController {
   private readonly assetClusterService: AssetClusterService;
 
   constructor() {
-    this.assetClusterService = new AssetClusterService();
+    this.assetClusterService = AssetClusterService.getInstance();
   }
 
   public async getSectorSummary(req: Request, res: Response): Promise<Response> {

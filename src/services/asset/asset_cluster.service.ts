@@ -1,5 +1,4 @@
-import { Op } from "sequelize";
-import { Asset, attributesAsset, attributesAssetCluster } from "../../db_schema";
+import { Asset, attributesAssetCluster } from "../../db_schema";
 import { AssetRepository, CountryRepository, SectorRepository } from "../../repositories";
 import { AssetClusterRepository } from "../../repositories/asset/asset_cluster.repository";
 import { AssetType } from "../../dtos";
@@ -8,13 +7,23 @@ import { PortfolioService } from "../portfolio/portfolio.service";
 import { RankAsset } from "../../dtos/asset/ranking/rank";
 
 export class AssetClusterService {
-  private readonly assetClusterRepository = new AssetClusterRepository()
-  private readonly assetRepository = new AssetRepository()
-  private readonly assetPriceRepository = new AssetPriceRepository()
-  private readonly sectorRepository = new SectorRepository()
-  private readonly countryRepository = new CountryRepository()
-  private readonly portfolioService = new PortfolioService()
-  constructor() {}
+  private static instance: AssetClusterService;
+
+  private readonly assetClusterRepository = new AssetClusterRepository();
+  private readonly assetRepository = new AssetRepository();
+  private readonly assetPriceRepository = new AssetPriceRepository();
+  private readonly sectorRepository = new SectorRepository();
+  private readonly countryRepository = new CountryRepository();
+  private readonly portfolioService = new PortfolioService();
+
+  private constructor() {}
+
+  static getInstance(): AssetClusterService {
+    if (!AssetClusterService.instance) {
+      AssetClusterService.instance = new AssetClusterService();
+    }
+    return AssetClusterService.instance;
+  }
 
   private perfCache: { asset: Asset; perf: number }[] | null = null;
   private perfCacheTimestamp: number = 0;
