@@ -21,36 +21,13 @@ export class ForexService {
 
   public async getAllForex(offset = 0, limit = 100, search?: string): Promise<ForexListMetaData> {
     const forexList = await this.forexRepository.getAllForexUuid(offset, limit, search ?? "");
-    const enriched: ForexMetaData[] = await Promise.all(
-      forexList.map(async (forex) => ({
-        forex,
-        last_update: (await this.forexRepository.getLatestForexRate(forex.uuid))?.forex_rate_date ?? null
-      }))
-    );
-    const length = (await this.forexRepository.get({
-      where: search
-        ? {
-            [Op.or]: [
-              { "$baseCurrency.currency_name$": { [Op.startsWith]: search } }, // va chercher le nom dans la clé étrangère
-              { "$quoteCurrency.currency_name$": { [Op.startsWith]: search } },
-            ],
-          }
-        : undefined,
-      include: [
-        {
-          model: Currency,
-          as: "baseCurrency",
-          attributes: [],
-          required: false,
-        },
-        {
-          model: Currency,
-          as: "quoteCurrency",
-          attributes: [],
-          required: false,
-        },
-      ],
-    })).length;
+    const forexUuids = forexList.map(forex => forex.uuid);
+    const latestForexRate = await this.forexRepository.getLatestForexRateBulk(forexUuids)
+    const enriched: ForexMetaData[] = forexList.map((forex) => ({
+      forex,
+      last_update: latestForexRate.get(forex.uuid) ?? null
+    }))
+    const length = await this.forexRepository.countAll(search ?? "");
     return {length , forex_list : enriched};
   }
 

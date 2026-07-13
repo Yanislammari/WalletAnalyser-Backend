@@ -19,9 +19,8 @@ import CountriesRoutes from "./routes/countries.routes";
 import multer from "multer";
 import { BadgeService } from "./services/badge.service";
 import BadgeRoutes from "./routes/badge.routes";
-import { createVerifyTokenAdminMiddleware, createVerifyTokenMiddleware } from "./middleware/token";
+import { createVerifyTokenMiddleware } from "./middleware/token";
 import ClusterRoutes from "./routes/asset_cluster.routes";
-import { PYTHON_BASE_URL } from "./constants/env";
 import { AssetClusterRepository } from "./repositories/asset/asset_cluster.repository";
 
 AzureAppInsightsService.init();

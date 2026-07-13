@@ -140,6 +140,7 @@ class PortfolioController {
       const portfolioId: string = req.params.portfolioId as string;
       const assetId: string = req.query.assetId as string;
       const date: string = req.query.date as string;
+      let currencyId : string = req.query.currencyId as string;
 
       if (!assetId || !date) {
         return res.status(400).json({ message: "assetId and date query parameters are required" });
