@@ -335,12 +335,29 @@ export class AssetRepository extends BaseRepository<Asset> {
     return result
   }
 
-  async getAssetsOfSector(sector_uuid : string): Promise<Asset[]>{
-    return await Asset.findAll({ where : {[attributesAsset.sector_uuid] : sector_uuid }})
+  async getAssetsOfSector(sector_uuid: string, offset: number, limit: number, search: string): Promise<Asset[]> {
+    return await Asset.findAll({
+      where: {
+        [attributesAsset.sector_uuid]: sector_uuid,
+        ...(search
+          ? {
+              [attributesAsset.official_name]: {
+                [Op.iLike]: `%${search}%`,
+              },
+            }
+          : {}),
+      },
+      offset,
+      limit,
+    });
   }
 
-  async getAssetsOfCountry(country_uuid : string): Promise<Asset[]> {
-    return await Asset.findAll({ where : {[attributesAsset.country_uuid] : country_uuid }})
+  async getAssetsOfCountry(country_uuid : string, offset: number, limit: number, search: string): Promise<Asset[]> {
+    return await Asset.findAll({
+      where: {
+        [attributesAsset.country_uuid]: country_uuid
+      }
+    });
   }
 
   async getAllAssetOfSector() {

@@ -114,8 +114,8 @@ export class UserAssetBuyRepository extends BaseRepository<UserAssetBuy> {
     return results.map((r) => r.company_name as string);
   }
 
-  public async getBuysType(portfolioId : string, type : AssetType): Promise<UserAssetBuy[]> {
-    return await this.model.findAll({
+  public async getBuysType(portfolioId : string, type : AssetType): Promise<number> {
+    return await this.model.count({
       where : { [attributesUserAssetBuy.portfolio_uuid] : portfolioId},
       include : [{
         model: Asset,
