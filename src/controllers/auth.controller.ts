@@ -250,6 +250,19 @@ class AuthController {
     }
   }
 
+  public async deleteAccount(req: Request, res: Response): Promise<Response> {
+    try {
+      const user = (req as any).user;
+      await this.authService.deleteAccount(user.id);
+      return res.status(200).json({ message: "Account deleted" });
+    } catch (error) {
+      if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+        return res.status(404).json({ message: "User not found" });
+      }
+      return res.status(500).json({ message: "Failed to delete account" });
+    }
+  }
+
   public async sendContact(req: Request, res: Response): Promise<Response> {
     try {
       const user = (req as any).user;

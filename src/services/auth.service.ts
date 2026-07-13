@@ -2,6 +2,8 @@ import { SECRET_KEY, MJ_SENDER } from "../constants/env";
 import { MailjetService } from "./mailjet.service";
 import { SALT_ROUNDS } from "../constants/hash";
 import { User } from "../db_schema";
+import { Portfolio } from "../db_schema/portfolio/portfolio";
+import { UserBadge } from "../db_schema/badge/user_badge";
 import { store2FA } from "../config/store";
 import { AuthResponseDto, FirstFaDto, LoginRequestDto, RegisterRequestDto, UserResponseDto } from "../dtos";
 import { UserMapper } from "../mappers";
@@ -334,6 +336,20 @@ export class AuthService {
       }
       throw new Error("SEND_ACTIVATE_ACCOUNT_EMAIL_FAILED");
     }
+  }
+
+  public async deleteAccount(userId: string): Promise<void> {
+    const user = await this.userRepository.getById(userId);
+    if (!user) throw new Error("USER_NOT_FOUND");
+
+    // Delete all portfolios (DB-level CASCADE removes buys, sells, dividends)
+    await Portfolio.destroy({ where: { user_uuid: userId } });
+
+    // Delete user badges explicitly for safety
+    await UserBadge.destroy({ where: { user_uuid: userId } });
+
+    // Finally delete the user
+    await this.userRepository.remove(userId);
   }
 
   public async activateAccount(token: string): Promise<void> {

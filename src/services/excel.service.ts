@@ -206,40 +206,58 @@ export class ExcelService {
         return;
       }
       const tickers = await this.marketstackController.fetchTickers();
-      console.log("Adding stocks to the database");
+      console.log(`Adding ${tickers.length} stocks to the database`);
 
-      for (const index in tickers) {
-        if (["TOT"].includes(tickers[index].ticker)) { // to fix some weird ticker that could appear
+      const EXCLUDED = new Set(["TOT"]);
+      const BATCH_SIZE = 100;
+
+      // Filter tickers upfront
+      const validTickers = tickers.filter(t => !EXCLUDED.has(t.ticker));
+
+      // Process in batches of 100 — one yf.quote() call per batch instead of per ticker
+      for (let i = 0; i < validTickers.length; i += BATCH_SIZE) {
+        const batch = validTickers.slice(i, i + BATCH_SIZE);
+        const batchSymbols = batch.map(t => t.ticker.replace(".", "-"));
+
+        let quotes: any[] = [];
+        try {
+          const result = await this.yf.quote(batchSymbols);
+          quotes = Array.isArray(result) ? result : [result];
+        } catch (err) {
+          console.error(`[addAdminStocks] Batch quote error (batch ${i / BATCH_SIZE + 1}):`, err);
           continue;
         }
-        const ticker = tickers[index].ticker.replace(".","-")
-        const { quote, summary } = await this.safeQuote(ticker);
-        if(!quote || !quote.longName || !quote.symbol) {
-          continue
+
+        const quoteMap = new Map(quotes.map((q: any) => [q.symbol, q]));
+
+        for (const t of batch) {
+          const symbol = t.ticker.replace(".", "-");
+          const quote = quoteMap.get(symbol) ?? quoteMap.get(t.ticker);
+          if (!quote || !quote.longName || !quote.symbol) continue;
+
+          // Sector & country: use Excel data (no quoteSummary call per ticker)
+          const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(t.ticker, this.stocksSheetNameEn);
+          const sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
+          const country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name ?? "");
+
+          const currency = await this.currenciesRepository.getCurenciesFromDb(quote.currency);
+          const asset_type = quote.quoteType !== "EQUITY" ? AssetType.ETF : AssetType.STOCKS;
+
+          const assetDatabase = new AssetDatabaseModel(
+            quote.displayName ?? quote.longName,
+            quote.longName,
+            quote.symbol,
+            asset_type,
+            sector?.uuid ?? null,
+            country?.uuid ?? null,
+            currency?.uuid ?? null,
+          );
+          await this.assetRepository.addAssetFromAssetToDatabase(assetDatabase);
         }
 
-        let sector, country;
-        if(!summary){
-          const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(tickers[index].ticker, this.stocksSheetNameEn);
-          sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
-          country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name?? "");
-        }
-
-        else {
-          sector = summary.assetProfile?.sector ? await this.sectorRepository.getSectorByName(summary.assetProfile.sector) : null;
-          if(!sector && summary.assetProfile?.sector) {
-            sector = await this.sectorRepository.addSectorToDatabase(summary.assetProfile?.sector ?? "")
-          }
-          country = summary.assetProfile?.country ? await this.countryRepository.getCountryByName(summary.assetProfile.country) : null;
-        }
-        const currency = await this.currenciesRepository.getCurenciesFromDb(quote.currency)
-        const asset_type = quote.quoteType != "EQUITY" ? AssetType.ETF : AssetType.STOCKS
-
-        await this.sleep(1000)
-        const assetDatabase = new AssetDatabaseModel(quote.displayName ?? quote.longName, quote.longName, quote.symbol, asset_type, 
-          sector?.uuid ?? null, country?.uuid ?? null, currency?.uuid ?? null
-        );
-        await this.assetRepository.addAssetFromAssetToDatabase(assetDatabase);
+        // Small pause between batches to respect Yahoo Finance rate limits
+        if (i + BATCH_SIZE < validTickers.length) await this.sleep(300);
+        console.log(`[addAdminStocks] Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(validTickers.length / BATCH_SIZE)} done`);
       }
     } catch (error) {
       console.error("Error adding stocks to the database:", error);
@@ -374,7 +392,7 @@ export class ExcelService {
         }
         else {
           const { quote, summary } = await this.safeQuote(filtered[0].symbol as string);
-          await this.sleep(1000)
+          await this.sleep(150)
           if(!quote || !quote.longName || !quote.symbol) {
             const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(holding.investment_security.name, this.stocksSheetNameEn, this.assetNameColumnIndex);
             const sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
