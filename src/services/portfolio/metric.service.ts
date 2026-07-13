@@ -7,8 +7,10 @@ import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
 import { AssetPriceRepository } from "../../repositories/asset/asset_price.repository";
 import { AssetRepository } from "../../repositories/asset/asset.repository";
-import { MetricResponseDto, TopHolding, AllocationItem, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
+import { EtfHoldingsRepository } from "../../repositories/asset/etf_holding.repository";
+import { MetricResponseDto, DashboardResponseDto, TopHolding, AllocationItem, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
 import { CurrenciesRepository } from "../../repositories";
+import { AssetType } from "../../dtos";
 
 const RISK_FREE_RATE = 0.04; // 4 % annual
 
@@ -26,20 +28,94 @@ export class MetricService {
   private readonly sellRepository:       UserAssetSellRepository;
   private readonly dividendRepository:   UserAssetDividendRepository;
   private readonly currenciesRepository: CurrenciesRepository;
-  private readonly assetPriceRepository: AssetPriceRepository;
-  private readonly assetRepository:      AssetRepository;
-  private rateCache: Map<string, number> = new Map();
+  private readonly assetPriceRepository:  AssetPriceRepository;
+  private readonly assetRepository:       AssetRepository;
+  private readonly etfHoldingsRepository: EtfHoldingsRepository;
+  // Promise-based cache: storing the Promise itself ensures concurrent calls for the same
+  // (currency, date) key share a single DB round-trip instead of each firing their own query.
+  private rateCache: Map<string, Promise<number>> = new Map();
 
   constructor() {
-    this.buyRepository        = new UserAssetBuyRepository();
-    this.sellRepository       = new UserAssetSellRepository();
-    this.dividendRepository   = new UserAssetDividendRepository();
-    this.currenciesRepository = new CurrenciesRepository();
-    this.assetPriceRepository = new AssetPriceRepository();
-    this.assetRepository      = new AssetRepository();
+    this.buyRepository         = new UserAssetBuyRepository();
+    this.sellRepository        = new UserAssetSellRepository();
+    this.dividendRepository    = new UserAssetDividendRepository();
+    this.currenciesRepository  = new CurrenciesRepository();
+    this.assetPriceRepository  = new AssetPriceRepository();
+    this.assetRepository       = new AssetRepository();
+    this.etfHoldingsRepository = new EtfHoldingsRepository();
   }
 
-  // ─── Public entry point ────────────────────────────────────────────────────
+  // ─── Public entry point — free dashboard data (chart + holdings + sectors) ─
+
+  public async getDashboardData(portfolioId: string, currencyId: string): Promise<DashboardResponseDto> {
+    this.rateCache.clear();
+
+    const targetCurrency = await this.currenciesRepository.getById(currencyId);
+    if (!targetCurrency) throw new Error("CURRENCY_NOT_FOUND");
+
+    const empty: DashboardResponseDto = {
+      monthlyData: [], topHoldings: [], sectorBreakdown: [], countryBreakdown: [],
+      currencyId: targetCurrency.uuid, currencyName: targetCurrency.currency_name,
+    };
+
+    const [buys, sells, dividends] = await Promise.all([
+      this.buyRepository.getAllByPortfolioId(portfolioId),
+      this.sellRepository.getAllByPortfolioId(portfolioId),
+      this.dividendRepository.getAllByPortfolioId(portfolioId),
+    ]);
+
+    if (buys.length === 0) return empty;
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    // Build currency-converted flows (buy, sell, dividend) — same logic as getMetrics
+    const flows: CashFlow[] = [];
+
+    const [buyFlows, sellFlows, divFlows] = await Promise.all([
+      Promise.all(buys.map(async (buy) => {
+        const amount = this.buyAmount(buy);
+        if (amount == null) return null;
+        const rate = await this.getRate(buy.buy_currency_uuid, currencyId, new Date(buy.buy_date));
+        return { date: new Date(buy.buy_date), amount: amount * rate, type: "buy" as FlowType, company: buy.company_name ?? undefined };
+      })),
+      Promise.all(sells.map(async (sell) => {
+        const amount = this.sellAmount(sell);
+        if (amount == null) return null;
+        const rate = await this.getRate(sell.sell_currency_uuid, currencyId, new Date(sell.sell_date));
+        return { date: new Date(sell.sell_date), amount: amount * rate, type: "sell" as FlowType, company: sell.company_name ?? undefined };
+      })),
+      Promise.all(dividends.map(async (div) => {
+        const exDate = new Date(div.cashflow_date);
+        if (exDate > today) return null;
+        const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
+        return { date: exDate, amount: div.cashflow_amount * rate, type: "dividend" as FlowType };
+      })),
+    ]);
+
+    for (const f of buyFlows)  if (f) flows.push(f);
+    for (const f of sellFlows) if (f) flows.push(f);
+    for (const f of divFlows)  if (f) flows.push(f);
+    flows.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    if (flows.length === 0) return empty;
+
+    // Compute chart data + holdings breakdown in parallel (no TWR/Sharpe/XIRR)
+    const totalInvested = flows.filter(f => f.type === "buy").reduce((s, f) => s + f.amount, 0);
+
+    const [monthlyData, { topHoldings: topHoldingsMv, sectorBreakdown, countryBreakdown }] = await Promise.all([
+      this.computeMonthlyData(flows, buys, sells, currencyId, today),
+      this.computeHoldingsBreakdown(buys, sells, currencyId),
+    ]);
+
+    const topHoldings = topHoldingsMv.length > 0
+      ? topHoldingsMv
+      : this.computeTopHoldings(flows, totalInvested);
+
+    return { monthlyData, topHoldings, sectorBreakdown, countryBreakdown, currencyId: targetCurrency.uuid, currencyName: targetCurrency.currency_name };
+  }
+
+  // ─── Public entry point — full metrics (Pro) ───────────────────────────────
 
   public async getMetrics(portfolioId: string, currencyId: string, fromDate?: string, portfolioMarketValue?: number): Promise<MetricResponseDto> {
     this.rateCache.clear();
@@ -68,39 +144,52 @@ export class MetricService {
 
     const flows: CashFlow[] = [];
 
-    for (const buy of buys) {
-      const buyDate = new Date(buy.buy_date);
-      if (filterFrom && buyDate < filterFrom) continue;
-      const amount = this.buyAmount(buy);
-      if (amount == null) continue;
-      const rate = await this.getRate(buy.buy_currency_uuid, currencyId, buyDate);
-      flows.push({ date: buyDate, amount: amount * rate, type: "buy", company: buy.company_name ?? undefined });
-    }
+    // ── Buys, sells, dividends — all parallel ─────────────────────────────
+    // Promise-based rateCache guarantees each unique (currency, date) pair hits
+    // the DB exactly once even with many concurrent callers.
+    const [buyFlows, sellResults, divFlows] = await Promise.all([
+      Promise.all(buys.map(async (buy) => {
+        const buyDate = new Date(buy.buy_date);
+        if (filterFrom && buyDate < filterFrom) return null;
+        const amount = this.buyAmount(buy);
+        if (amount == null) return null;
+        const rate = await this.getRate(buy.buy_currency_uuid, currencyId, buyDate);
+        return { date: buyDate, amount: amount * rate, type: "buy" as FlowType, company: buy.company_name ?? undefined };
+      })),
+      Promise.all(sells.map(async (sell) => {
+        const sellDate = new Date(sell.sell_date);
+        if (filterFrom && sellDate < filterFrom) return null;
+        const amount = this.sellAmount(sell);
+        if (amount == null) return null;
+        const rate = await this.getRate(sell.sell_currency_uuid, currencyId, sellDate);
+        const costBasis = sell.asset_sell_share != null && sell.average_asset_share_buy_price != null
+          ? sell.asset_sell_share * sell.average_asset_share_buy_price * rate
+          : 0;
+        return {
+          flow: { date: sellDate, amount: amount * rate, type: "sell" as FlowType, company: sell.company_name ?? undefined },
+          costBasis,
+        };
+      })),
+      Promise.all(dividends.map(async (div) => {
+        const exDate = new Date(div.cashflow_date);
+        if (exDate > today) return null;
+        if (filterFrom && exDate < filterFrom) return null;
+        const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
+        return { date: exDate, amount: div.cashflow_amount * rate, type: "dividend" as FlowType };
+      })),
+    ]);
+
+    for (const f of buyFlows) if (f) flows.push(f);
 
     // ── Sell loop — also track cost basis of each sell for Realized P&L ────
     let costBasisOfSells = 0;
-
-    for (const sell of sells) {
-      const sellDate = new Date(sell.sell_date);
-      if (filterFrom && sellDate < filterFrom) continue;
-      const amount = this.sellAmount(sell);
-      if (amount == null) continue;
-      const rate = await this.getRate(sell.sell_currency_uuid, currencyId, sellDate);
-      flows.push({ date: sellDate, amount: amount * rate, type: "sell", company: sell.company_name ?? undefined });
-
-      // Cost basis = shares_sold × average_buy_price_at_time_of_sell
-      if (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null) {
-        costBasisOfSells += sell.asset_sell_share * sell.average_asset_share_buy_price * rate;
-      }
+    for (const r of sellResults) {
+      if (!r) continue;
+      flows.push(r.flow);
+      costBasisOfSells += r.costBasis;
     }
 
-    for (const div of dividends) {
-      const exDate = new Date(div.cashflow_date);
-      if (exDate > today) continue;
-      if (filterFrom && exDate < filterFrom) continue;
-      const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
-      flows.push({ date: exDate, amount: div.cashflow_amount * rate, type: "dividend" });
-    }
+    for (const f of divFlows) if (f) flows.push(f);
 
     flows.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -547,23 +636,33 @@ export class MetricService {
       prices: Array<{ date: Date; price: number }>;
     }
 
-    const trackerMap  = new Map<string, AssetTracker>();
-    const assetCache  = new Map<string, Asset | null>();
+    const trackerMap = new Map<string, AssetTracker>();
+    // Promise-based cache prevents duplicate DB lookups for the same asset under parallel calls
+    const assetCache = new Map<string, Promise<Asset | null>>();
 
-    const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
+    const resolveAsset = (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
       const cacheKey = assetUuid ?? `name:${companyName}`;
-      if (assetCache.has(cacheKey)) return assetCache.get(cacheKey)!;
-      let asset: Asset | null = null;
-      if (assetUuid) {
-        asset = await this.assetRepository.getAssetFromUUID(assetUuid);
-      } else if (companyName) {
-        asset = await this.assetRepository.getAssetFromOfficialName(companyName)
-          ?? await this.assetRepository.getAssetFromTicker(companyName);
+      if (!assetCache.has(cacheKey)) {
+        assetCache.set(cacheKey, (async (): Promise<Asset | null> => {
+          if (assetUuid) return this.assetRepository.getAssetFromUUID(assetUuid);
+          if (companyName) {
+            return (await this.assetRepository.getAssetFromOfficialName(companyName))
+              ?? this.assetRepository.getAssetFromTicker(companyName);
+          }
+          return null;
+        })());
       }
-      assetCache.set(cacheKey, asset);
-      return asset;
+      return assetCache.get(cacheKey)!;
     };
 
+    // ── Pre-warm asset cache in parallel ────────────────────────────────────
+    // All unique assets are resolved concurrently; the loops below are instant cache hits.
+    await Promise.all([
+      ...buys.filter(b => b.asset_buy_share).map(b => resolveAsset(b.asset_uuid, b.company_name)),
+      ...sells.filter(s => s.asset_sell_share).map(s => resolveAsset(s.asset_uuid, s.company_name)),
+    ]);
+
+    // ── Build tracker map (all cache hits now — no DB calls) ────────────────
     for (const buy of buys) {
       if (!buy.asset_buy_share) continue;
       const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
@@ -583,32 +682,43 @@ export class MetricService {
       trackerMap.get(asset.uuid)!.sells.push({ date: new Date(sell.sell_date), shares: sell.asset_sell_share });
     }
 
-    for (const [uuid, tracker] of trackerMap) {
-      const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
-      tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
-    }
+    // ── Fetch all asset price histories in parallel ─────────────────────────
+    // Previously sequential (1 query per asset); now all fire concurrently.
+    await Promise.all(
+      Array.from(trackerMap.entries()).map(async ([uuid, tracker]) => {
+        const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
+        tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
+      })
+    );
 
-    for (const monthKey of monthKeys) {
-      const [year, month] = monthKey.split("-").map(Number);
-      const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    // ── Compute market values for ALL months in parallel ────────────────────
+    // Previously: M months × N assets = M×N sequential getRate calls.
+    // Now: all months processed concurrently; getRate cache prevents duplicate DB queries
+    // for the same (currency, month-end-date) across assets.
+    const monthResults = await Promise.all(
+      monthKeys.map(async (monthKey) => {
+        const [year, month] = monthKey.split("-").map(Number);
+        const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
-      let totalMarketValue = 0;
+        const assetValues = await Promise.all(
+          Array.from(trackerMap.values()).map(async (tracker) => {
+            const sharesHeld =
+              tracker.buys.filter(b => b.date <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
+              tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
+            if (sharesHeld <= 0.0001) return 0;
+            const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
+            if (price === null) return 0;
+            const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
+            return sharesHeld * price * rate;
+          })
+        );
 
-      for (const [, tracker] of trackerMap) {
-        const sharesHeld =
-          tracker.buys.filter(b  => b.date  <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
-          tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
+        return { monthKey, total: assetValues.reduce((sum, v) => sum + v, 0) };
+      })
+    );
 
-        if (sharesHeld <= 0.0001) continue;
-
-        const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
-        if (price === null) continue;
-
-        const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
-        totalMarketValue += sharesHeld * price * rate;
-      }
-
-      result.set(monthKey, totalMarketValue);
+    for (const { monthKey, total } of monthResults) {
+      result.set(monthKey, total);
     }
 
     return result;
@@ -660,25 +770,34 @@ export class MetricService {
       baseCurrencyUuid: string;
       shares:           number;
       marketValue:      number;
+      isEtf:            boolean;
     }
 
     const holdingMap = new Map<string, Holding>();
-    const assetCache = new Map<string, Asset | null>();
+    // Promise-based cache prevents duplicate DB lookups for the same asset under parallel calls
+    const assetCache = new Map<string, Promise<Asset | null>>();
 
-    const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
+    const resolveAsset = (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
       const key = assetUuid ?? `name:${companyName}`;
-      if (assetCache.has(key)) return assetCache.get(key)!;
-      let asset: Asset | null = null;
-      if (assetUuid) {
-        asset = await this.assetRepository.getAssetWithSectorAndCountry(assetUuid);
-      } else if (companyName) {
-        const found = await this.assetRepository.getAssetFromOfficialName(companyName)
-          ?? await this.assetRepository.getAssetFromTicker(companyName);
-        asset = found ? await this.assetRepository.getAssetWithSectorAndCountry(found.uuid) : null;
+      if (!assetCache.has(key)) {
+        assetCache.set(key, (async (): Promise<Asset | null> => {
+          if (assetUuid) return this.assetRepository.getAssetWithSectorAndCountry(assetUuid);
+          if (companyName) {
+            const found = (await this.assetRepository.getAssetFromOfficialName(companyName))
+              ?? (await this.assetRepository.getAssetFromTicker(companyName));
+            return found ? this.assetRepository.getAssetWithSectorAndCountry(found.uuid) : null;
+          }
+          return null;
+        })());
       }
-      assetCache.set(key, asset);
-      return asset;
+      return assetCache.get(key)!;
     };
+
+    // ── Pre-warm asset cache in parallel ────────────────────────────────────
+    await Promise.all([
+      ...buys.filter(b => b.asset_buy_share).map(b => resolveAsset(b.asset_uuid, b.company_name)),
+      ...sells.filter(s => s.asset_sell_share).map(s => resolveAsset(s.asset_uuid, s.company_name)),
+    ]);
 
     for (const buy of buys) {
       if (!buy.asset_buy_share) continue;
@@ -693,6 +812,7 @@ export class MetricService {
           baseCurrencyUuid: asset.base_currency_uuid,
           shares:           0,
           marketValue:      0,
+          isEtf:            asset.asset_type === AssetType.ETF,
         });
       }
       holdingMap.get(asset.uuid)!.shares += buy.asset_buy_share;
@@ -706,32 +826,136 @@ export class MetricService {
     }
 
     const today = new Date();
-    let totalMv = 0;
 
-    for (const [uuid, holding] of holdingMap) {
-      if (holding.shares <= 0.0001) { holdingMap.delete(uuid); continue; }
-      const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(uuid);
-      if (!latestPrice) { holdingMap.delete(uuid); continue; }
-      const rate = await this.getRate(holding.baseCurrencyUuid, currencyId, today);
-      holding.marketValue = holding.shares * latestPrice.asset_price * rate;
-      totalMv += holding.marketValue;
+    // ── Bulk fetch all latest prices (1 query instead of N) ─────────────────
+    const heldUuids = Array.from(holdingMap.entries())
+      .filter(([, h]) => h.shares > 0.0001)
+      .map(([uuid]) => uuid);
+
+    const bulkPrices = heldUuids.length > 0
+      ? await this.assetPriceRepository.getClosestPricesBeforeOrAtBulk(heldUuids, today)
+      : [];
+    const priceByUuid = new Map(bulkPrices.map(r => [r.asset_uuid, r.asset_price]));
+
+    // ── Parallel forex rate lookups ──────────────────────────────────────────
+    const mvEntries = await Promise.all(
+      Array.from(holdingMap.entries()).map(async ([uuid, holding]) => {
+        if (holding.shares <= 0.0001) return { uuid, mv: null as number | null };
+        const price = priceByUuid.get(uuid);
+        if (price == null) return { uuid, mv: null as number | null };
+        const rate = await this.getRate(holding.baseCurrencyUuid, currencyId, today);
+        return { uuid, mv: holding.shares * price * rate };
+      })
+    );
+
+    let totalMv = 0;
+    for (const { uuid, mv } of mvEntries) {
+      if (mv == null) {
+        holdingMap.delete(uuid);
+      } else {
+        holdingMap.get(uuid)!.marketValue = mv;
+        totalMv += mv;
+      }
     }
 
     if (totalMv === 0) return empty;
 
-    const holdings = Array.from(holdingMap.values()).filter(h => h.marketValue > 0);
+    // ── Expand ETF positions into underlying holdings ────────────────────────
+    // ETFs are "look-through" for allocation, sector, and geographic breakdowns:
+    // each ETF's market value is distributed across its underlying stocks
+    // according to their percentage concentration in the ETF.
+    // Non-ETF positions pass through unchanged.
 
-    const topHoldings: TopHolding[] = holdings
+    interface ExpandedHolding {
+      companyName: string;
+      sectorName:  string | null;
+      countryName: string | null;
+      marketValue: number;
+    }
+
+    // Fetch all ETF holdings data in parallel
+    const etfUuids = Array.from(holdingMap.entries())
+      .filter(([, h]) => h.isEtf && h.marketValue > 0)
+      .map(([uuid]) => uuid);
+
+    const etfHoldingsData = new Map<string, Array<{ pct: number; name: string; sector: string | null; country: string | null }>>();
+    await Promise.all(
+      etfUuids.map(async (uuid) => {
+        const rows = await this.etfHoldingsRepository.getEtfHoldingsFromEtf(uuid);
+        etfHoldingsData.set(uuid, rows.map(r => ({
+          pct:     r.asset_percentage_concentration_in_etf,
+          name:    (r.asset as any)?.official_name ?? "Unknown",
+          sector:  (r.asset as any)?.sector?.sector_name ?? null,
+          country: (r.asset as any)?.country?.country_name ?? null,
+        })));
+      })
+    );
+
+    const expandedHoldings: ExpandedHolding[] = [];
+
+    for (const [uuid, holding] of holdingMap) {
+      if (holding.marketValue <= 0) continue;
+
+      if (holding.isEtf) {
+        const underlyings = etfHoldingsData.get(uuid) ?? [];
+
+        if (underlyings.length === 0) {
+          // No holdings data — treat as a single opaque holding
+          expandedHoldings.push({
+            companyName: holding.companyName,
+            sectorName:  holding.sectorName,
+            countryName: holding.countryName,
+            marketValue: holding.marketValue,
+          });
+          continue;
+        }
+
+        // Distribute ETF market value proportionally to each underlying
+        let accountedPct = 0;
+        for (const u of underlyings) {
+          accountedPct += u.pct;
+          expandedHoldings.push({
+            companyName: u.name,
+            sectorName:  u.sector,
+            countryName: u.country,
+            marketValue: holding.marketValue * (u.pct / 100),
+          });
+        }
+
+        // Any unaccounted % (holdings data rarely sums to exactly 100) → "Other" bucket
+        const remainingPct = 100 - accountedPct;
+        if (remainingPct > 0.5) {
+          expandedHoldings.push({
+            companyName: `${holding.companyName} (Other)`,
+            sectorName:  holding.sectorName,  // fallback to ETF-level category
+            countryName: holding.countryName,
+            marketValue: holding.marketValue * (remainingPct / 100),
+          });
+        }
+      } else {
+        expandedHoldings.push({
+          companyName: holding.companyName,
+          sectorName:  holding.sectorName,
+          countryName: holding.countryName,
+          marketValue: holding.marketValue,
+        });
+      }
+    }
+
+    const totalExpandedMv = expandedHoldings.reduce((s, h) => s + h.marketValue, 0);
+    if (totalExpandedMv === 0) return empty;
+
+    const topHoldings: TopHolding[] = [...expandedHoldings]
       .sort((a, b) => b.marketValue - a.marketValue)
       .slice(0, 6)
       .map(h => ({
         companyName: h.companyName,
         invested:    this.round(h.marketValue),
-        allocation:  this.round((h.marketValue / totalMv) * 100),
+        allocation:  this.round((h.marketValue / totalExpandedMv) * 100),
       }));
 
     const sectorMap = new Map<string, number>();
-    for (const h of holdings) {
+    for (const h of expandedHoldings) {
       const key = h.sectorName ?? "Unknown";
       sectorMap.set(key, (sectorMap.get(key) ?? 0) + h.marketValue);
     }
@@ -740,11 +964,11 @@ export class MetricService {
       .map(([name, value]) => ({
         name,
         value:      this.round(value),
-        allocation: this.round((value / totalMv) * 100),
+        allocation: this.round((value / totalExpandedMv) * 100),
       }));
 
     const countryMap = new Map<string, number>();
-    for (const h of holdings) {
+    for (const h of expandedHoldings) {
       const key = h.countryName ?? "Unknown";
       countryMap.set(key, (countryMap.get(key) ?? 0) + h.marketValue);
     }
@@ -753,7 +977,7 @@ export class MetricService {
       .map(([name, value]) => ({
         name,
         value:      this.round(value),
-        allocation: this.round((value / totalMv) * 100),
+        allocation: this.round((value / totalExpandedMv) * 100),
       }));
 
     return { topHoldings, sectorBreakdown, countryBreakdown };
@@ -775,16 +999,20 @@ export class MetricService {
         : null);
   }
 
-  private async getRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
-    if (sourceCurrencyId === targetCurrencyId) return 1;
+  private getRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
+    if (sourceCurrencyId === targetCurrencyId) return Promise.resolve(1);
     const key = `${sourceCurrencyId}→${targetCurrencyId}@${date.toISOString().split("T")[0]}`;
-    if (this.rateCache.has(key)) return this.rateCache.get(key)!;
-    try {
-      const forex = await this.currenciesRepository.getClosestForexRateBeforeOrAt(sourceCurrencyId, targetCurrencyId, date);
-      const rate  = forex?.forex_rate ?? 1;
-      this.rateCache.set(key, rate);
-      return rate;
-    } catch { return 1; }
+    if (!this.rateCache.has(key)) {
+      // Store the Promise — concurrent callers share one DB round-trip
+      this.rateCache.set(
+        key,
+        this.currenciesRepository
+          .getClosestForexRateBeforeOrAt(sourceCurrencyId, targetCurrencyId, date)
+          .then(forex => forex?.forex_rate ?? 1)
+          .catch(() => 1),
+      );
+    }
+    return this.rateCache.get(key)!;
   }
 
   private monthKey(date: Date): string {

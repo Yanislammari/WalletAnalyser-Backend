@@ -46,6 +46,10 @@ AssetPrice.init(
   },
   {
     sequelize,
+    indexes: [
+      // Composite index: lookups by asset_uuid + date (latest price, historical prices, closest price)
+      { fields: ["asset_uuid", "asset_price_date"] },
+    ],
   }
 );
 
