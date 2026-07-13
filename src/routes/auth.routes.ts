@@ -23,6 +23,7 @@ const AuthRoutes = (): Router => {
   router.post("/activate-account", async (req, res) => authController.activateAccount(req, res));
   router.post("/verify-token-admin", async (req, res) => authController.verifyTokenAdmin(req, res));
   router.patch("/profile", createVerifyTokenMiddleware(), (req, res) => authController.updateProfile(req, res));
+  router.delete("/account", createVerifyTokenMiddleware(), (req, res) => authController.deleteAccount(req, res));
   router.post("/contact", createVerifyTokenMiddleware(), (req, res) => authController.sendContact(req, res));
 
   return router;

@@ -39,6 +39,7 @@ export class GoogleOAuthService {
         google_id: payload.sub || null,
         google_picture_url: payload.picture || null,
         ban: false,
+        activated: true, // Google already verified the email address
         user_type: UserType.USER,
         subscribe: false,
         created_at: new Date(),
@@ -46,6 +47,10 @@ export class GoogleOAuthService {
       } as User;
 
       user = await this.userRepository.add(newUser);
+    } else if (!user.activated) {
+      // Existing Google user created before this fix — auto-activate them now
+      await this.userRepository.activateUser(user.id as string);
+      user.activated = true;
     }
 
     return {
