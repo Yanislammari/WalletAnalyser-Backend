@@ -7,7 +7,7 @@ import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
 import { AssetPriceRepository } from "../../repositories/asset/asset_price.repository";
 import { AssetRepository } from "../../repositories/asset/asset.repository";
-import { MetricResponseDto, TopHolding, AllocationItem, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
+import { MetricResponseDto, DashboardResponseDto, TopHolding, AllocationItem, MonthlyDataPoint, MonthlyTwrPoint } from "../../dtos/portfolio/responses/metric.response.dto";
 import { CurrenciesRepository } from "../../repositories";
 
 const RISK_FREE_RATE = 0.04; // 4 % annual
@@ -798,6 +798,77 @@ export class MetricService {
 
   private round(value: number): number {
     return Math.round(value * 100) / 100;
+  }
+
+  // ─── Dashboard data (free tier) ───────────────────────────────────────────
+
+  public async getDashboardData(portfolioId: string, currencyId: string): Promise<DashboardResponseDto> {
+    this.rateCache.clear();
+
+    const targetCurrency = await this.currenciesRepository.getById(currencyId);
+    if (!targetCurrency) throw new Error("CURRENCY_NOT_FOUND");
+
+    const empty: DashboardResponseDto = {
+      monthlyData: [], topHoldings: [], sectorBreakdown: [], countryBreakdown: [],
+      currencyId: targetCurrency.uuid, currencyName: targetCurrency.currency_name,
+    };
+
+    const [buys, sells, dividends] = await Promise.all([
+      this.buyRepository.getAllByPortfolioId(portfolioId),
+      this.sellRepository.getAllByPortfolioId(portfolioId),
+      this.dividendRepository.getAllByPortfolioId(portfolioId),
+    ]);
+
+    if (buys.length === 0) return empty;
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const flows: CashFlow[] = [];
+
+    for (const buy of buys) {
+      const amount = this.buyAmount(buy);
+      if (amount == null) continue;
+      const rate = await this.getRate(buy.buy_currency_uuid, currencyId, new Date(buy.buy_date));
+      flows.push({ date: new Date(buy.buy_date), amount: amount * rate, type: "buy", company: buy.company_name ?? undefined });
+    }
+
+    for (const sell of sells) {
+      const amount = this.sellAmount(sell);
+      if (amount == null) continue;
+      const rate = await this.getRate(sell.sell_currency_uuid, currencyId, new Date(sell.sell_date));
+      flows.push({ date: new Date(sell.sell_date), amount: amount * rate, type: "sell", company: sell.company_name ?? undefined });
+    }
+
+    for (const div of dividends) {
+      const exDate = new Date(div.cashflow_date);
+      if (exDate > today) continue;
+      const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
+      flows.push({ date: exDate, amount: div.cashflow_amount * rate, type: "dividend" });
+    }
+
+    flows.sort((a, b) => a.date.getTime() - b.date.getTime());
+    if (flows.length === 0) return empty;
+
+    const totalInvested = flows.filter(f => f.type === "buy").reduce((s, f) => s + f.amount, 0);
+
+    const [monthlyData, { topHoldings: topHoldingsMv, sectorBreakdown, countryBreakdown }] = await Promise.all([
+      this.computeMonthlyData(flows, buys, sells, currencyId, today),
+      this.computeHoldingsBreakdown(buys, sells, currencyId),
+    ]);
+
+    const topHoldings = topHoldingsMv.length > 0
+      ? topHoldingsMv
+      : this.computeTopHoldings(flows, totalInvested);
+
+    return {
+      monthlyData,
+      topHoldings,
+      sectorBreakdown,
+      countryBreakdown,
+      currencyId:   targetCurrency.uuid,
+      currencyName: targetCurrency.currency_name,
+    };
   }
 
   private emptyMetrics(currency: Currency): MetricResponseDto {

@@ -28,6 +28,15 @@ export interface MonthlyTwrPoint {
   cumTwr: number;      // cumulative chain-linked TWR (%) from portfolio start
 }
 
+export interface DashboardResponseDto {
+  monthlyData:      MonthlyDataPoint[];
+  topHoldings:      TopHolding[];
+  sectorBreakdown:  AllocationItem[];
+  countryBreakdown: AllocationItem[];
+  currencyId:   string;
+  currencyName: string;
+}
+
 export interface MetricResponseDto {
   // Core financials (realized only — sells + dividends)
   totalInvested: number;

@@ -13,7 +13,7 @@ import { AssetBuyResponseDto, AssetDividendResponseDto, AssetSellResponseDto, Po
 import { PaginatedResponseDto } from "../dtos/common/paginated.response.dto";
 import AssetCountResponse from "../dtos/portfolio/responses/asset.count.response";
 import { PortfolioTotalResponseDto } from "../dtos/portfolio/responses/portfolio.total.response.dto";
-import { MetricResponseDto } from "../dtos/portfolio/responses/metric.response.dto";
+import { MetricResponseDto, DashboardResponseDto } from "../dtos/portfolio/responses/metric.response.dto";
 
 class PortfolioController {
   private readonly portfolioService: PortfolioService;
@@ -140,7 +140,6 @@ class PortfolioController {
       const portfolioId: string = req.params.portfolioId as string;
       const assetId: string = req.query.assetId as string;
       const date: string = req.query.date as string;
-      let currencyId : string = req.query.currencyId as string;
 
       if (!assetId || !date) {
         return res.status(400).json({ message: "assetId and date query parameters are required" });
@@ -344,6 +343,27 @@ class PortfolioController {
       return res.status(200).json(response);
     }
     catch (error) {
+      if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
+        return res.status(404).json({ message: "Portfolio not found" });
+      }
+      if (error instanceof Error && error.message === "CURRENCY_NOT_FOUND") {
+        return res.status(404).json({ message: "Currency not found" });
+      }
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  public async getDashboardData(req: Request, res: Response): Promise<Response> {
+    try {
+      const portfolioId: string = req.params.portfolioId as string;
+      const portfolio = await this.portfolioService.getPortfolioById(portfolioId);
+      const currencyId = portfolio.displayCurrencyId;
+      if (!currencyId) {
+        return res.status(400).json({ message: "Portfolio has no base currency set." });
+      }
+      const response: DashboardResponseDto = await this.metricService.getDashboardData(portfolioId, currencyId);
+      return res.status(200).json(response);
+    } catch (error) {
       if (error instanceof Error && error.message === "PORTFOLIO_NOT_FOUND") {
         return res.status(404).json({ message: "Portfolio not found" });
       }
