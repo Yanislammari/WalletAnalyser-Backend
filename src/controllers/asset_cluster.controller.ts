@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { AssetClusterService } from "../services/asset/asset_cluster.service";
+import { AssetClusterService } from "../services/asset/asset_cluster_service.ts/asset_cluster.service";
 
 export enum RankingType {
   COUNTRIES = "countries",
@@ -52,7 +52,14 @@ class AssetClusterController {
       const { portfolio_id } = req.params;
       let response = null
       if(portfolio_id){
-        response = await this.assetClusterService.getUserStocksSummary(portfolio_id as string);
+        const offset = (req.query.offset as string) ?? "0";
+        const formattedOffset = Number(offset);
+        if (isNaN(formattedOffset)) throw Error("Wrong offset");
+        const search = (req.query.search as string) ?? "";
+        const limit = (req.query.limit as string) ?? "50";
+        const formattedLimit = Number(limit)
+        if(isNaN(formattedLimit)) throw Error("Wrong limit");
+        response = await this.assetClusterService.getUserStocksSummary(portfolio_id as string, formattedOffset, formattedLimit, search);
       }
       return res.status(200).json({sectorsData : response});
     }
@@ -66,13 +73,21 @@ class AssetClusterController {
     try {
       const type = req.query.type as string;
       const uuid = req.query.uuid as string;
+      const offset = (req.query.offset as string) ?? "0";
+      const formattedOffset = Number(offset);
+      if (isNaN(formattedOffset)) throw Error("Wrong offset");
+      const search = (req.query.search as string) ?? "";
+      const limit = (req.query.limit as string) ?? "50";
+      const formattedLimit = Number(limit)
+      if(isNaN(formattedLimit)) throw Error("Wrong limit");
+
       let response;
       if(type == RankingType.SECTORS){
-        response = await this.assetClusterService.getSectorDetails(uuid)
+        response = await this.assetClusterService.getSectorDetails(uuid, formattedOffset, formattedLimit, search)
       } else if(type == RankingType.CLUSTERS){
-        response = await this.assetClusterService.getClusterDetails(uuid)
+        response = await this.assetClusterService.getClusterDetails(uuid, formattedOffset, formattedLimit, search)
       } else if(type == RankingType.COUNTRIES) {
-        response = await this.assetClusterService.getCountriesDetails(uuid)
+        response = await this.assetClusterService.getCountriesDetails(uuid, formattedOffset, formattedLimit, search)
       } else {
         throw Error("NO_TYPE")
       }

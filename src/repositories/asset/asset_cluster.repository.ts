@@ -1,8 +1,7 @@
-import { includes } from "zod";
 import { Asset, AssetCluster, attributesAsset, attributesAssetCluster } from "../../db_schema";
 import { BaseRepository } from "../base.repository";
 import { AssetRepository } from "./asset.repository";
-import { Op, where } from "sequelize";
+import { Op } from "sequelize";
 import { AssetType } from "../../dtos";
 
 export class AssetClusterRepository extends BaseRepository<AssetCluster> {
@@ -24,5 +23,26 @@ export class AssetClusterRepository extends BaseRepository<AssetCluster> {
       }],
   })
     return assetClusters
+  }
+
+  async getAllAssetsFromClusterPaginated(cluster_id: number, offset: number, limit: number, search: string): Promise<AssetCluster[]> {
+    return await AssetCluster.findAll({
+      where : { 
+        [attributesAssetCluster.cluster] : cluster_id,
+      },
+      include: [{
+        model: Asset,
+        required: true,
+        where: search
+          ? {
+              [attributesAsset.official_name]: {
+                [Op.iLike]: `%${search}%`,
+              },
+            }
+          : undefined,
+      }],
+      offset,
+      limit,
+    })
   }
 }
