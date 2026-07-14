@@ -90,8 +90,8 @@ export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
     return results.map((r) => r.company_name as string);
   }
 
-  public async getSellsType(portfolioId : string, type : AssetType): Promise<UserAssetSell[]> {
-    return await this.model.findAll({
+  public async getSellsType(portfolioId : string, type : AssetType): Promise<number> {
+    return await this.model.count({
       where : { [attributesUserAssetSell.portfolio_uuid] : portfolioId},
       include : [{
         model: Asset,

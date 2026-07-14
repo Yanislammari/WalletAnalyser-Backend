@@ -59,12 +59,12 @@ export class BadgeService {
     let numberOfAssetsSell = 0;
     let numberOfEtfBuy = 0;
     let numberOfEtfSell = 0;
-  
-    for(const portfolio of userPortfolios) {
-      const currencyId = await this.currencyRepository.get({
-        where : {[attributesCurrency.currency_name] : "USD"}
-      })
-      if(currencyId.length == 0) throw new Error("NO_CURRENCY")
+    
+    const currencyId = await this.currencyRepository.get({
+      where : {[attributesCurrency.currency_name] : "USD"}
+    })
+    if(currencyId.length == 0) throw new Error("NO_CURRENCY")
+    for(const portfolio of userPortfolios) {   
       const size = await this.portfolioTotalService.getPortfolioTotal(portfolio.uuid, currencyId[0].uuid)
       if(size.portfolioMarketValue > max) {
         max = size.portfolioMarketValue
@@ -72,10 +72,10 @@ export class BadgeService {
       if(size.totalDividends > amountOfDividend){
         amountOfDividend = size.totalDividends
       }
-      numberOfAssetBuy += ( await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.STOCKS)).length 
-      numberOfEtfBuy += ( await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.ETF)).length 
-      numberOfAssetsSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.STOCKS)).length 
-      numberOfEtfSell += ( await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.ETF)).length 
+      numberOfAssetBuy += await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.STOCKS) 
+      numberOfEtfBuy += await this.userAssetBuyRepository.getBuysType(portfolio.uuid, AssetType.ETF)
+      numberOfAssetsSell += await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.STOCKS)
+      numberOfEtfSell += await this.userAssetSellRepository.getSellsType(portfolio.uuid, AssetType.ETF)
     }
     
     const stats: UserStats = { 
