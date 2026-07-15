@@ -1,7 +1,8 @@
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
-import { Asset, Currency } from "../../db_schema";
+import { Asset, Currency, Forex, ForexRate, attributesForex, attributesForexRate } from "../../db_schema";
+import { Op } from "sequelize";
 import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
 import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
 import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
@@ -28,7 +29,9 @@ export class MetricService {
   private readonly currenciesRepository: CurrenciesRepository;
   private readonly assetPriceRepository: AssetPriceRepository;
   private readonly assetRepository:      AssetRepository;
-  private rateCache: Map<string, number> = new Map();
+  // Promise-based dedup cache: concurrent calls for the same key share one DB query
+  private readonly rateCache       = new Map<string, Promise<number>>();
+  private readonly forexPairCache  = new Map<string, Promise<string | null>>();
 
   constructor() {
     this.buyRepository        = new UserAssetBuyRepository();
@@ -42,7 +45,6 @@ export class MetricService {
   // ─── Public entry point ────────────────────────────────────────────────────
 
   public async getMetrics(portfolioId: string, currencyId: string, fromDate?: string, portfolioMarketValue?: number): Promise<MetricResponseDto> {
-    this.rateCache.clear();
 
     const targetCurrency: Currency | null = await this.currenciesRepository.getById(currencyId);
     if (!targetCurrency) throw new Error("CURRENCY_NOT_FOUND");
@@ -68,39 +70,43 @@ export class MetricService {
 
     const flows: CashFlow[] = [];
 
-    for (const buy of buys) {
-      const buyDate = new Date(buy.buy_date);
-      if (filterFrom && buyDate < filterFrom) continue;
-      const amount = this.buyAmount(buy);
-      if (amount == null) continue;
-      const rate = await this.getRate(buy.buy_currency_uuid, currencyId, buyDate);
-      flows.push({ date: buyDate, amount: amount * rate, type: "buy", company: buy.company_name ?? undefined });
-    }
-
-    // ── Sell loop — also track cost basis of each sell for Realized P&L ────
+    // ── All three loops run concurrently — DB round-trips overlap ────────────
     let costBasisOfSells = 0;
 
-    for (const sell of sells) {
-      const sellDate = new Date(sell.sell_date);
-      if (filterFrom && sellDate < filterFrom) continue;
-      const amount = this.sellAmount(sell);
-      if (amount == null) continue;
-      const rate = await this.getRate(sell.sell_currency_uuid, currencyId, sellDate);
-      flows.push({ date: sellDate, amount: amount * rate, type: "sell", company: sell.company_name ?? undefined });
+    const [buyFlows, sellResults, divFlows] = await Promise.all([
+      Promise.all(buys.map(async (buy) => {
+        const buyDate = new Date(buy.buy_date);
+        if (filterFrom && buyDate < filterFrom) return null;
+        const amount = this.buyAmount(buy);
+        if (amount == null) return null;
+        const rate = await this.getRate(buy.buy_currency_uuid, currencyId, buyDate);
+        return { date: buyDate, amount: amount * rate, type: "buy" as FlowType, company: buy.company_name ?? undefined };
+      })),
+      Promise.all(sells.map(async (sell) => {
+        const sellDate = new Date(sell.sell_date);
+        if (filterFrom && sellDate < filterFrom) return null;
+        const amount = this.sellAmount(sell);
+        if (amount == null) return null;
+        const rate = await this.getRate(sell.sell_currency_uuid, currencyId, sellDate);
+        const costBasis = (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null)
+          ? sell.asset_sell_share * sell.average_asset_share_buy_price * rate
+          : 0;
+        return { flow: { date: sellDate, amount: amount * rate, type: "sell" as FlowType, company: sell.company_name ?? undefined }, costBasis };
+      })),
+      Promise.all(dividends.map(async (div) => {
+        const exDate = new Date(div.cashflow_date);
+        if (exDate > today) return null;
+        if (filterFrom && exDate < filterFrom) return null;
+        const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
+        return { date: exDate, amount: div.cashflow_amount * rate, type: "dividend" as FlowType };
+      })),
+    ]);
 
-      // Cost basis = shares_sold × average_buy_price_at_time_of_sell
-      if (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null) {
-        costBasisOfSells += sell.asset_sell_share * sell.average_asset_share_buy_price * rate;
-      }
+    for (const f of buyFlows)  if (f) flows.push(f);
+    for (const r of sellResults) {
+      if (r) { flows.push(r.flow); costBasisOfSells += r.costBasis; }
     }
-
-    for (const div of dividends) {
-      const exDate = new Date(div.cashflow_date);
-      if (exDate > today) continue;
-      if (filterFrom && exDate < filterFrom) continue;
-      const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
-      flows.push({ date: exDate, amount: div.cashflow_amount * rate, type: "dividend" });
-    }
+    for (const f of divFlows)  if (f) flows.push(f);
 
     flows.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -564,52 +570,54 @@ export class MetricService {
       return asset;
     };
 
-    for (const buy of buys) {
-      if (!buy.asset_buy_share) continue;
+    // Resolve all buy assets in parallel
+    await Promise.all(buys.map(async (buy) => {
+      if (!buy.asset_buy_share) return;
       const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
-      if (!asset?.uuid || !asset?.base_currency_uuid) continue;
-
+      if (!asset?.uuid || !asset?.base_currency_uuid) return;
       if (!trackerMap.has(asset.uuid)) {
         trackerMap.set(asset.uuid, { baseCurrencyUuid: asset.base_currency_uuid, buys: [], sells: [], prices: [] });
       }
       trackerMap.get(asset.uuid)!.buys.push({ date: new Date(buy.buy_date), shares: buy.asset_buy_share });
-    }
+    }));
 
-    for (const sell of sells) {
-      if (!sell.asset_sell_share) continue;
+    // Resolve all sell assets in parallel
+    await Promise.all(sells.map(async (sell) => {
+      if (!sell.asset_sell_share) return;
       const asset = await resolveAsset(sell.asset_uuid, sell.company_name);
-      if (!asset?.uuid || !trackerMap.has(asset.uuid)) continue;
-
+      if (!asset?.uuid || !trackerMap.has(asset.uuid)) return;
       trackerMap.get(asset.uuid)!.sells.push({ date: new Date(sell.sell_date), shares: sell.asset_sell_share });
-    }
+    }));
 
-    for (const [uuid, tracker] of trackerMap) {
+    // Fetch all historical prices in parallel
+    await Promise.all([...trackerMap.entries()].map(async ([uuid, tracker]) => {
       const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
       tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
-    }
+    }));
 
-    for (const monthKey of monthKeys) {
+    // All months computed in parallel; within each month all assets are parallel too
+    await Promise.all(monthKeys.map(async (monthKey) => {
       const [year, month] = monthKey.split("-").map(Number);
       const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
-      let totalMarketValue = 0;
+      const perAssetValues = await Promise.all(
+        [...trackerMap.values()].map(async (tracker) => {
+          const sharesHeld =
+            tracker.buys.filter(b  => b.date  <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
+            tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
 
-      for (const [, tracker] of trackerMap) {
-        const sharesHeld =
-          tracker.buys.filter(b  => b.date  <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
-          tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
+          if (sharesHeld <= 0.0001) return 0;
 
-        if (sharesHeld <= 0.0001) continue;
+          const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
+          if (price === null) return 0;
 
-        const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
-        if (price === null) continue;
+          const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
+          return sharesHeld * price * rate;
+        })
+      );
 
-        const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
-        totalMarketValue += sharesHeld * price * rate;
-      }
-
-      result.set(monthKey, totalMarketValue);
-    }
+      result.set(monthKey, perAssetValues.reduce((s, v) => s + v, 0));
+    }));
 
     return result;
   }
@@ -680,11 +688,11 @@ export class MetricService {
       return asset;
     };
 
-    for (const buy of buys) {
-      if (!buy.asset_buy_share) continue;
+    // Resolve all buy assets in parallel
+    await Promise.all(buys.map(async (buy) => {
+      if (!buy.asset_buy_share) return;
       const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
-      if (!asset?.uuid || !asset.base_currency_uuid) continue;
-
+      if (!asset?.uuid || !asset.base_currency_uuid) return;
       if (!holdingMap.has(asset.uuid)) {
         holdingMap.set(asset.uuid, {
           companyName:      asset.official_name ?? buy.company_name ?? asset.uuid,
@@ -696,25 +704,35 @@ export class MetricService {
         });
       }
       holdingMap.get(asset.uuid)!.shares += buy.asset_buy_share;
-    }
+    }));
 
-    for (const sell of sells) {
-      if (!sell.asset_sell_share) continue;
+    // Resolve all sell assets in parallel
+    await Promise.all(sells.map(async (sell) => {
+      if (!sell.asset_sell_share) return;
       const asset = await resolveAsset(sell.asset_uuid, sell.company_name);
-      if (!asset?.uuid || !holdingMap.has(asset.uuid)) continue;
+      if (!asset?.uuid || !holdingMap.has(asset.uuid)) return;
       holdingMap.get(asset.uuid)!.shares -= sell.asset_sell_share;
-    }
+    }));
 
     const today = new Date();
     let totalMv = 0;
 
-    for (const [uuid, holding] of holdingMap) {
-      if (holding.shares <= 0.0001) { holdingMap.delete(uuid); continue; }
-      const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(uuid);
-      if (!latestPrice) { holdingMap.delete(uuid); continue; }
-      const rate = await this.getRate(holding.baseCurrencyUuid, currencyId, today);
-      holding.marketValue = holding.shares * latestPrice.asset_price * rate;
-      totalMv += holding.marketValue;
+    // Fetch latest prices + rates for all holdings in parallel
+    const holdingEntries = [...holdingMap.entries()];
+    const priceResults = await Promise.all(
+      holdingEntries.map(async ([uuid, holding]) => {
+        if (holding.shares <= 0.0001) return { uuid, remove: true };
+        const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(uuid);
+        if (!latestPrice) return { uuid, remove: true };
+        const rate = await this.getRate(holding.baseCurrencyUuid, currencyId, today);
+        return { uuid, remove: false, marketValue: holding.shares * latestPrice.asset_price * rate };
+      })
+    );
+
+    for (const r of priceResults) {
+      if (r.remove) { holdingMap.delete(r.uuid); continue; }
+      holdingMap.get(r.uuid)!.marketValue = r.marketValue!;
+      totalMv += r.marketValue!;
     }
 
     if (totalMv === 0) return empty;
@@ -775,16 +793,36 @@ export class MetricService {
         : null);
   }
 
-  private async getRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
-    if (sourceCurrencyId === targetCurrencyId) return 1;
-    const key = `${sourceCurrencyId}→${targetCurrencyId}@${date.toISOString().split("T")[0]}`;
-    if (this.rateCache.has(key)) return this.rateCache.get(key)!;
-    try {
-      const forex = await this.currenciesRepository.getClosestForexRateBeforeOrAt(sourceCurrencyId, targetCurrencyId, date);
-      const rate  = forex?.forex_rate ?? 1;
-      this.rateCache.set(key, rate);
-      return rate;
-    } catch { return 1; }
+  private getRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
+    if (sourceCurrencyId === targetCurrencyId) return Promise.resolve(1);
+    const dateStr = date.toISOString().split("T")[0];
+    const key     = `${sourceCurrencyId}→${targetCurrencyId}@${dateStr}`;
+    if (!this.rateCache.has(key)) {
+      this.rateCache.set(key, this.fetchRate(sourceCurrencyId, targetCurrencyId, date));
+    }
+    return this.rateCache.get(key)!;
+  }
+
+  // Separate fetcher — cached forex pair UUID avoids a duplicate Forex.findOne per rate call
+  private fetchRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
+    const pairKey = `${sourceCurrencyId}→${targetCurrencyId}`;
+    if (!this.forexPairCache.has(pairKey)) {
+      this.forexPairCache.set(pairKey,
+        Forex.findOne({ where: { [attributesForex.base_currency]: sourceCurrencyId, [attributesForex.quote_currency]: targetCurrencyId } })
+          .then((f: Forex | null) => f?.uuid ?? null)
+          .catch(() => null)
+      );
+    }
+    return this.forexPairCache.get(pairKey)!.then(async (forexUuid: string | null) => {
+      if (!forexUuid) return 1;
+      try {
+        const row = await ForexRate.findOne({
+          where: { [attributesForexRate.forex_uuid]: forexUuid, [attributesForexRate.forex_rate_date]: { [Op.lte]: date } },
+          order: [[attributesForexRate.forex_rate_date, "DESC"]],
+        });
+        return row?.forex_rate ?? 1;
+      } catch { return 1; }
+    });
   }
 
   private monthKey(date: Date): string {
@@ -803,7 +841,6 @@ export class MetricService {
   // ─── Dashboard data (free tier) ───────────────────────────────────────────
 
   public async getDashboardData(portfolioId: string, currencyId: string): Promise<DashboardResponseDto> {
-    this.rateCache.clear();
 
     const targetCurrency = await this.currenciesRepository.getById(currencyId);
     if (!targetCurrency) throw new Error("CURRENCY_NOT_FOUND");
@@ -826,26 +863,31 @@ export class MetricService {
 
     const flows: CashFlow[] = [];
 
-    for (const buy of buys) {
-      const amount = this.buyAmount(buy);
-      if (amount == null) continue;
-      const rate = await this.getRate(buy.buy_currency_uuid, currencyId, new Date(buy.buy_date));
-      flows.push({ date: new Date(buy.buy_date), amount: amount * rate, type: "buy", company: buy.company_name ?? undefined });
-    }
+    // All three loops run concurrently
+    const [buyFlows, sellFlows, divFlows] = await Promise.all([
+      Promise.all(buys.map(async (buy) => {
+        const amount = this.buyAmount(buy);
+        if (amount == null) return null;
+        const rate = await this.getRate(buy.buy_currency_uuid, currencyId, new Date(buy.buy_date));
+        return { date: new Date(buy.buy_date), amount: amount * rate, type: "buy" as FlowType, company: buy.company_name ?? undefined };
+      })),
+      Promise.all(sells.map(async (sell) => {
+        const amount = this.sellAmount(sell);
+        if (amount == null) return null;
+        const rate = await this.getRate(sell.sell_currency_uuid, currencyId, new Date(sell.sell_date));
+        return { date: new Date(sell.sell_date), amount: amount * rate, type: "sell" as FlowType, company: sell.company_name ?? undefined };
+      })),
+      Promise.all(dividends.map(async (div) => {
+        const exDate = new Date(div.cashflow_date);
+        if (exDate > today) return null;
+        const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
+        return { date: exDate, amount: div.cashflow_amount * rate, type: "dividend" as FlowType };
+      })),
+    ]);
 
-    for (const sell of sells) {
-      const amount = this.sellAmount(sell);
-      if (amount == null) continue;
-      const rate = await this.getRate(sell.sell_currency_uuid, currencyId, new Date(sell.sell_date));
-      flows.push({ date: new Date(sell.sell_date), amount: amount * rate, type: "sell", company: sell.company_name ?? undefined });
-    }
-
-    for (const div of dividends) {
-      const exDate = new Date(div.cashflow_date);
-      if (exDate > today) continue;
-      const rate = await this.getRate(div.currency_uuid, currencyId, exDate);
-      flows.push({ date: exDate, amount: div.cashflow_amount * rate, type: "dividend" });
-    }
+    for (const f of buyFlows)  if (f) flows.push(f);
+    for (const f of sellFlows) if (f) flows.push(f);
+    for (const f of divFlows)  if (f) flows.push(f);
 
     flows.sort((a, b) => a.date.getTime() - b.date.getTime());
     if (flows.length === 0) return empty;
