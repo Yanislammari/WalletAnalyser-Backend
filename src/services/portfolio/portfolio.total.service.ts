@@ -1,4 +1,5 @@
-import { Asset, Currency } from "../../db_schema";
+import { Asset, Currency, Forex, ForexRate, attributesForex, attributesForexRate } from "../../db_schema";
+import { Op } from "sequelize";
 import { UserAssetBuy } from "../../db_schema/portfolio/user_asset_buy";
 import { UserAssetSell } from "../../db_schema/portfolio/user_asset_sell";
 import { UserAssetDividend } from "../../db_schema/portfolio/user_asset_dividend";
@@ -13,27 +14,29 @@ import { CurrenciesRepository } from "../../repositories";
 import { YahooFinanceService } from "../yahoo.finance.service";
 
 export class PortfolioTotalService {
-  private readonly portfolioRepository: PortfolioRepository;
-  private readonly userAssetBuyRepository: UserAssetBuyRepository;
-  private readonly userAssetSellRepository: UserAssetSellRepository;
-  private readonly userAssetDividendRepository: UserAssetDividendRepository;
-  private readonly currenciesRepository: CurrenciesRepository;
-  private readonly assetPriceRepository: AssetPriceRepository;
-  private readonly assetRepository: AssetRepository;
-  private readonly yahooFinanceService: YahooFinanceService;
+  private readonly portfolioRepository:           PortfolioRepository;
+  private readonly userAssetBuyRepository:        UserAssetBuyRepository;
+  private readonly userAssetSellRepository:       UserAssetSellRepository;
+  private readonly userAssetDividendRepository:   UserAssetDividendRepository;
+  private readonly currenciesRepository:          CurrenciesRepository;
+  private readonly assetPriceRepository:          AssetPriceRepository;
+  private readonly assetRepository:              AssetRepository;
+  private readonly yahooFinanceService:           YahooFinanceService;
 
-  // Cache for forex rates during a single calculation to avoid repeated DB hits
-  private rateCache: Map<string, number> = new Map();
+  // Promise-based dedup caches — same pattern as MetricService.
+  // Concurrent callers that need the same rate share a single in-flight DB query.
+  private readonly rateCache      = new Map<string, Promise<number>>();
+  private readonly forexPairCache = new Map<string, Promise<string | null>>();
 
   constructor() {
-    this.portfolioRepository = new PortfolioRepository();
-    this.userAssetBuyRepository = new UserAssetBuyRepository();
-    this.userAssetSellRepository = new UserAssetSellRepository();
+    this.portfolioRepository         = new PortfolioRepository();
+    this.userAssetBuyRepository      = new UserAssetBuyRepository();
+    this.userAssetSellRepository     = new UserAssetSellRepository();
     this.userAssetDividendRepository = new UserAssetDividendRepository();
-    this.currenciesRepository = new CurrenciesRepository();
-    this.assetPriceRepository = new AssetPriceRepository();
-    this.assetRepository = new AssetRepository();
-    this.yahooFinanceService = new YahooFinanceService();
+    this.currenciesRepository        = new CurrenciesRepository();
+    this.assetPriceRepository        = new AssetPriceRepository();
+    this.assetRepository             = new AssetRepository();
+    this.yahooFinanceService         = new YahooFinanceService();
   }
 
   public async getPortfolioTotal(portfolioId: string, currencyId: string): Promise<PortfolioTotalResponseDto> {
@@ -43,38 +46,40 @@ export class PortfolioTotalService {
     const targetCurrency: Currency | null = await this.currenciesRepository.getById(currencyId);
     if (!targetCurrency) throw new Error("CURRENCY_NOT_FOUND");
 
-    this.rateCache.clear();
-
     const [buys, sells, dividends] = await Promise.all([
       this.userAssetBuyRepository.getAllByPortfolioId(portfolioId),
       this.userAssetSellRepository.getAllByPortfolioId(portfolioId),
       this.userAssetDividendRepository.getAllByPortfolioId(portfolioId),
     ]);
 
-    const totalInvested = await this.sumBuys(buys, currencyId);
-    const totalSells = await this.sumSells(sells, currencyId);
-    const totalDividends = await this.sumDividends(dividends, currencyId);
+    // All four computations run concurrently — rate cache deduplicates shared lookups
+    const [totalInvested, totalSells, totalDividends, portfolioMarketValue] = await Promise.all([
+      this.sumBuys(buys, currencyId),
+      this.sumSells(sells, currencyId),
+      this.sumDividends(dividends, currencyId),
+      this.computeMarketValue(buys, sells, currencyId),
+    ]);
+
     const netTotal = totalSells + totalDividends - totalInvested;
-    const portfolioMarketValue = await this.computeMarketValue(buys, sells, currencyId);
     const totalValue = portfolioMarketValue + totalSells + totalDividends;
 
     return {
-      totalInvested: Math.round(totalInvested * 100) / 100,
-      totalSells: Math.round(totalSells * 100) / 100,
-      totalDividends: Math.round(totalDividends * 100) / 100,
-      netTotal: Math.round(netTotal * 100) / 100,
+      totalInvested:        Math.round(totalInvested        * 100) / 100,
+      totalSells:           Math.round(totalSells           * 100) / 100,
+      totalDividends:       Math.round(totalDividends       * 100) / 100,
+      netTotal:             Math.round(netTotal             * 100) / 100,
       portfolioMarketValue: Math.round(portfolioMarketValue * 100) / 100,
-      totalValue: Math.round(totalValue * 100) / 100,
-      currencyId: targetCurrency.uuid,
+      totalValue:           Math.round(totalValue           * 100) / 100,
+      currencyId:   targetCurrency.uuid,
       currencyName: targetCurrency.currency_name,
     };
   }
 
+  // ─── Market value ─────────────────────────────────────────────────────────
+
   private async computeMarketValue(buys: UserAssetBuy[], sells: UserAssetSell[], currencyId: string): Promise<number> {
-    // Prefer asset_uuid (direct FK set since schema migration).
-    // Fall back to company_name for older records that pre-date the migration.
-    const netByAssetUuid = new Map<string, number>();
-    const netByCompanyName = new Map<string, number>();
+    const netByAssetUuid    = new Map<string, number>();
+    const netByCompanyName  = new Map<string, number>();
 
     for (const buy of buys) {
       if (buy.asset_buy_share == null) continue;
@@ -95,49 +100,93 @@ export class PortfolioTotalService {
     }
 
     const today = new Date();
-    let marketValue = 0;
 
-    // --- Assets resolved via UUID (new records) ---
-    for (const [assetUuid, shares] of netByAssetUuid) {
-      if (shares <= 0) continue;
-      const asset = await this.assetRepository.getAssetFromUUID(assetUuid);
-      if (!asset) continue;
-      const price = await this.resolveLatestPrice(asset);
-      if (price == null) continue;
-      const rate = await this.getConversionRate(asset.base_currency_uuid, currencyId, today);
-      marketValue += shares * price * rate;
-    }
+    // Resolve all assets and their prices in parallel
+    const [uuidValues, nameValues] = await Promise.all([
+      // --- Assets resolved via UUID ---
+      Promise.all(
+        [...netByAssetUuid.entries()].map(async ([assetUuid, shares]) => {
+          if (shares <= 0) return 0;
+          const asset = await this.assetRepository.getAssetFromUUID(assetUuid);
+          if (!asset) return 0;
+          const price = await this.resolveLatestPrice(asset);
+          if (price == null) return 0;
+          const rate = await this.getRate(asset.base_currency_uuid, currencyId, today);
+          return shares * price * rate;
+        })
+      ),
+      // --- Assets resolved via company_name (legacy records) ---
+      Promise.all(
+        [...netByCompanyName.entries()].map(async ([companyName, shares]) => {
+          if (shares <= 0) return 0;
+          let asset = await this.assetRepository.getAssetFromOfficialName(companyName);
+          if (!asset) asset = await this.assetRepository.getAssetFromTicker(companyName);
+          if (!asset) return 0;
+          const price = await this.resolveLatestPrice(asset);
+          if (price == null) return 0;
+          const rate = await this.getRate(asset.base_currency_uuid, currencyId, today);
+          return shares * price * rate;
+        })
+      ),
+    ]);
 
-    // --- Assets resolved via company_name (legacy records) ---
-    for (const [companyName, shares] of netByCompanyName) {
-      if (shares <= 0) continue;
-      let asset = await this.assetRepository.getAssetFromOfficialName(companyName);
-      if (!asset) asset = await this.assetRepository.getAssetFromTicker(companyName);
-      if (!asset) continue;
-      const price = await this.resolveLatestPrice(asset);
-      if (price == null) continue;
-      const rate = await this.getConversionRate(asset.base_currency_uuid, currencyId, today);
-      marketValue += shares * price * rate;
-    }
-
-    return marketValue;
+    return [...uuidValues, ...nameValues].reduce((s, v) => s + v, 0);
   }
 
-  /**
-   * Resolves the latest price for an asset.
-   * Tries the DB first; if no price record exists, falls back to a live Yahoo Finance quote.
-   */
+  // ─── Sums ─────────────────────────────────────────────────────────────────
+
+  private async sumBuys(buys: UserAssetBuy[], targetCurrencyId: string): Promise<number> {
+    const values = await Promise.all(buys.map(async (buy) => {
+      const amount =
+        buy.asset_buy_amount ??
+        (buy.asset_buy_share != null && buy.asset_buy_price_per_share != null
+          ? buy.asset_buy_share * buy.asset_buy_price_per_share
+          : null);
+      if (amount == null) return 0;
+      const rate = await this.getRate(buy.buy_currency_uuid, targetCurrencyId, new Date(buy.buy_date));
+      return amount * rate;
+    }));
+    return values.reduce((s, v) => s + v, 0);
+  }
+
+  private async sumSells(sells: UserAssetSell[], targetCurrencyId: string): Promise<number> {
+    const values = await Promise.all(sells.map(async (sell) => {
+      const amount =
+        sell.asset_sell_amount ??
+        (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null
+          ? sell.asset_sell_share * sell.average_asset_share_buy_price
+          : null);
+      if (amount == null) return 0;
+      const rate = await this.getRate(sell.sell_currency_uuid, targetCurrencyId, new Date(sell.sell_date));
+      return amount * rate;
+    }));
+    return values.reduce((s, v) => s + v, 0);
+  }
+
+  private async sumDividends(dividends: UserAssetDividend[], targetCurrencyId: string): Promise<number> {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const values = await Promise.all(dividends.map(async (div) => {
+      const exDate = new Date(div.cashflow_date);
+      if (exDate > today) return 0;
+      const rate = await this.getRate(div.currency_uuid, targetCurrencyId, exDate);
+      return div.cashflow_amount * rate;
+    }));
+    return values.reduce((s, v) => s + v, 0);
+  }
+
+  // ─── Price resolution ────────────────────────────────────────────────────
+
   private async resolveLatestPrice(asset: Asset): Promise<number | null> {
     const latestPrice = await this.assetPriceRepository.getLatestAssetPrice(asset.uuid);
     if (latestPrice) return latestPrice.asset_price;
 
-    // No historical price in DB — try a live quote from Yahoo Finance
     if (asset.ticker_name) {
       try {
         const quote = await this.yahooFinanceService.fetchAssetQuote(asset.ticker_name);
         if (quote?.price != null) return quote.price;
-      }
-      catch {
+      } catch {
         // Yahoo unreachable — skip
       }
     }
@@ -145,80 +194,46 @@ export class PortfolioTotalService {
     return null;
   }
 
-  private async sumBuys(buys: UserAssetBuy[], targetCurrencyId: string): Promise<number> {
-    let total = 0;
-    for (const buy of buys) {
-      const amount =
-        buy.asset_buy_amount ??
-        (buy.asset_buy_share != null && buy.asset_buy_price_per_share != null
-          ? buy.asset_buy_share * buy.asset_buy_price_per_share
-          : null);
+  // ─── Rate cache (promise-based dedup) ────────────────────────────────────
 
-      if (amount == null) continue;
-
-      const rate = await this.getConversionRate(buy.buy_currency_uuid, targetCurrencyId, new Date(buy.buy_date));
-      total += amount * rate;
-    }
-    return total;
-  }
-
-  private async sumSells(sells: UserAssetSell[], targetCurrencyId: string): Promise<number> {
-    let total = 0;
-    for (const sell of sells) {
-      const amount =
-        sell.asset_sell_amount ??
-        (sell.asset_sell_share != null && sell.average_asset_share_buy_price != null
-          ? sell.asset_sell_share * sell.average_asset_share_buy_price
-          : null);
-
-      if (amount == null) continue;
-
-      const rate = await this.getConversionRate(sell.sell_currency_uuid, targetCurrencyId, new Date(sell.sell_date));
-      total += amount * rate;
-    }
-    return total;
-  }
-
-  private async sumDividends(dividends: UserAssetDividend[], targetCurrencyId: string): Promise<number> {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-
-    let total = 0;
-    for (const div of dividends) {
-      // Skip upcoming dividends — ex-date hasn't passed yet
-      const exDate = new Date(div.cashflow_date);
-      if (exDate > today) continue;
-
-      const rate = await this.getConversionRate(div.currency_uuid, targetCurrencyId, exDate);
-      total += div.cashflow_amount * rate;
-    }
-    return total;
-  }
-
-  private async getConversionRate(sourceCurrencyId: string | null, targetCurrencyId: string, date: Date): Promise<number> {
-    if (!sourceCurrencyId || sourceCurrencyId === targetCurrencyId) return 1;
-
-    // Round date to day for cache key
+  private getRate(sourceCurrencyId: string | null, targetCurrencyId: string, date: Date): Promise<number> {
+    if (!sourceCurrencyId || sourceCurrencyId === targetCurrencyId) return Promise.resolve(1);
     const dateStr = date.toISOString().split("T")[0];
-    const cacheKey = `${sourceCurrencyId}→${targetCurrencyId}@${dateStr}`;
-
-    if (this.rateCache.has(cacheKey)) {
-      return this.rateCache.get(cacheKey)!;
+    const key     = `${sourceCurrencyId}→${targetCurrencyId}@${dateStr}`;
+    if (!this.rateCache.has(key)) {
+      this.rateCache.set(key, this.fetchRate(sourceCurrencyId, targetCurrencyId, date));
     }
+    return this.rateCache.get(key)!;
+  }
 
-    try {
-      const forexRate = await this.currenciesRepository.getClosestForexRateBeforeOrAt(
-        sourceCurrencyId,
-        targetCurrencyId,
-        date
+  private fetchRate(sourceCurrencyId: string, targetCurrencyId: string, date: Date): Promise<number> {
+    const pairKey = `${sourceCurrencyId}→${targetCurrencyId}`;
+    if (!this.forexPairCache.has(pairKey)) {
+      this.forexPairCache.set(pairKey,
+        Forex.findOne({
+          where: {
+            [attributesForex.base_currency]:   sourceCurrencyId,
+            [attributesForex.quote_currency]:  targetCurrencyId,
+          },
+        })
+          .then((f: Forex | null) => f?.uuid ?? null)
+          .catch(() => null)
       );
-
-      const rate = forexRate?.forex_rate ?? 1;
-      this.rateCache.set(cacheKey, rate);
-      return rate;
     }
-    catch {
-      return 1;
-    }
+    return this.forexPairCache.get(pairKey)!.then(async (forexUuid: string | null) => {
+      if (!forexUuid) return 1;
+      try {
+        const row = await ForexRate.findOne({
+          where: {
+            [attributesForexRate.forex_uuid]:       forexUuid,
+            [attributesForexRate.forex_rate_date]:  { [Op.lte]: date },
+          },
+          order: [[attributesForexRate.forex_rate_date, "DESC"]],
+        });
+        return row?.forex_rate ?? 1;
+      } catch {
+        return 1;
+      }
+    });
   }
 }

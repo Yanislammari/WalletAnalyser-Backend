@@ -3,7 +3,7 @@ import express from "express";
 import path from "path";
 import cors from "cors";
 import dotenv from "dotenv";
-import { startOfDatabase } from "./config";
+import { startOfDatabase, ensureIndexes } from "./config";
 import { ExcelService, AuthService } from "./services";
 import { AssetBaseCurrencySyncService } from "./services/asset.base.currency.sync.service";
 import { StartupSyncService } from "./services/startup/startup.sync.service";
@@ -32,6 +32,14 @@ const app = express();
 
 async function setUpApi() {
   await startOfDatabase();
+
+  // Fire-and-forget: build missing DB indexes in the background.
+  // Uses CREATE INDEX CONCURRENTLY IF NOT EXISTS — non-blocking and idempotent.
+  // After the first deploy this completes instantly (indexes already exist).
+  ensureIndexes().catch((err) => {
+    console.error("[Indexes] Unhandled error:", err instanceof Error ? err.message : String(err));
+  });
+
   const authService = new AuthService();
   authService.registerAdmin({
     email: "alexisduplessis2003@gmail.com",
