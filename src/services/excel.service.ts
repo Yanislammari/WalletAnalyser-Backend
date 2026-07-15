@@ -235,10 +235,30 @@ export class ExcelService {
           const quote = quoteMap.get(symbol) ?? quoteMap.get(t.ticker);
           if (!quote || !quote.longName || !quote.symbol) continue;
 
-          // Sector & country: use Excel data (no quoteSummary call per ticker)
-          const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(t.ticker, this.stocksSheetNameEn);
-          const sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
-          const country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name ?? "");
+          // Sector & country: Yahoo Finance (quoteSummary) preferred — more accurate/live.
+          // Excel is the fallback when quoteSummary fails or returns no sector.
+          // Note: yf.quote() was already called in bulk above; only quoteSummary needs a per-ticker call.
+          let summary = null;
+          try {
+            summary = await this.yf.quoteSummary(symbol, { modules: ["assetProfile"] });
+          } catch { /* ignore — fall through to Excel */ }
+          await this.sleep(150);
+
+          let sector, country;
+          if (summary?.assetProfile?.sector) {
+            sector = await this.sectorRepository.getSectorByName(summary.assetProfile.sector) ?? null;
+            if (!sector) {
+              sector = await this.sectorRepository.addSectorToDatabase(summary.assetProfile.sector);
+            }
+            country = summary.assetProfile.country
+              ? await this.countryRepository.getCountryByName(summary.assetProfile.country)
+              : null;
+          } else {
+            // Excel fallback
+            const findEnGeographicSector = this.getGeographicSectorFromTickerFromSpecificSheet(t.ticker, this.stocksSheetNameEn);
+            sector = await this.sectorRepository.getSectorByName(findEnGeographicSector?.sector_name ?? "");
+            country = await this.countryRepository.getCountryByName(findEnGeographicSector?.country_name ?? "");
+          }
 
           const currency = await this.currenciesRepository.getCurenciesFromDb(quote.currency);
           const asset_type = quote.quoteType !== "EQUITY" ? AssetType.ETF : AssetType.STOCKS;
