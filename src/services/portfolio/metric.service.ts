@@ -548,13 +548,12 @@ export class MetricService {
 
     interface AssetTracker {
       baseCurrencyUuid: string;
-      buys:   Array<{ date: Date; shares: number }>;
-      sells:  Array<{ date: Date; shares: number }>;
-      prices: Array<{ date: Date; price: number }>;
+      buys:  Array<{ date: Date; shares: number }>;
+      sells: Array<{ date: Date; shares: number }>;
     }
 
-    const trackerMap  = new Map<string, AssetTracker>();
-    const assetCache  = new Map<string, Asset | null>();
+    const trackerMap = new Map<string, AssetTracker>();
+    const assetCache = new Map<string, Asset | null>();
 
     const resolveAsset = async (assetUuid: string | null, companyName: string | null): Promise<Asset | null> => {
       const cacheKey = assetUuid ?? `name:${companyName}`;
@@ -576,7 +575,7 @@ export class MetricService {
       const asset = await resolveAsset(buy.asset_uuid, buy.company_name);
       if (!asset?.uuid || !asset?.base_currency_uuid) return;
       if (!trackerMap.has(asset.uuid)) {
-        trackerMap.set(asset.uuid, { baseCurrencyUuid: asset.base_currency_uuid, buys: [], sells: [], prices: [] });
+        trackerMap.set(asset.uuid, { baseCurrencyUuid: asset.base_currency_uuid, buys: [], sells: [] });
       }
       trackerMap.get(asset.uuid)!.buys.push({ date: new Date(buy.buy_date), shares: buy.asset_buy_share });
     }));
@@ -589,27 +588,30 @@ export class MetricService {
       trackerMap.get(asset.uuid)!.sells.push({ date: new Date(sell.sell_date), shares: sell.asset_sell_share });
     }));
 
-    // Fetch all historical prices in parallel
-    await Promise.all([...trackerMap.entries()].map(async ([uuid, tracker]) => {
-      const allPrices = await this.assetPriceRepository.getAllPricesForAsset(uuid);
-      tracker.prices = allPrices.map(p => ({ date: new Date(p.asset_price_date), price: p.asset_price }));
-    }));
+    const allAssetUuids = [...trackerMap.keys()];
+    if (allAssetUuids.length === 0) return result;
 
-    // All months computed in parallel; within each month all assets are parallel too
+    // One bulk query per month-end fetches the closest price for ALL assets at once.
+    // This replaces N_assets × getAllPricesForAsset (each returning hundreds/thousands of rows)
+    // with N_months × getClosestPricesBeforeOrAtBulk (each returning one row per asset).
     await Promise.all(monthKeys.map(async (monthKey) => {
       const [year, month] = monthKey.split("-").map(Number);
       const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
 
+      // Single SQL query for all assets at this month-end
+      const priceRows = await this.assetPriceRepository.getClosestPricesBeforeOrAtBulk(allAssetUuids, endOfMonth);
+      const priceMap  = new Map(priceRows.map(p => [p.asset_uuid, p.asset_price]));
+
       const perAssetValues = await Promise.all(
-        [...trackerMap.values()].map(async (tracker) => {
+        [...trackerMap.entries()].map(async ([uuid, tracker]) => {
           const sharesHeld =
-            tracker.buys.filter(b  => b.date  <= endOfMonth).reduce((s, b) => s + b.shares, 0) -
+            tracker.buys.filter(b   => b.date  <= endOfMonth).reduce((s, b)  => s + b.shares,  0) -
             tracker.sells.filter(sl => sl.date <= endOfMonth).reduce((s, sl) => s + sl.shares, 0);
 
           if (sharesHeld <= 0.0001) return 0;
 
-          const price = this.findPriceAtOrBefore(tracker.prices, endOfMonth);
-          if (price === null) return 0;
+          const price = priceMap.get(uuid);
+          if (price === undefined) return 0;
 
           const rate = await this.getRate(tracker.baseCurrencyUuid, currencyId, endOfMonth);
           return sharesHeld * price * rate;
@@ -619,15 +621,6 @@ export class MetricService {
       result.set(monthKey, perAssetValues.reduce((s, v) => s + v, 0));
     }));
 
-    return result;
-  }
-
-  private findPriceAtOrBefore(prices: Array<{ date: Date; price: number }>, targetDate: Date): number | null {
-    let result: number | null = null;
-    for (const p of prices) {
-      if (p.date <= targetDate) result = p.price;
-      else break;
-    }
     return result;
   }
 
