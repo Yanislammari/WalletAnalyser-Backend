@@ -111,6 +111,27 @@ export class AssetService {
     return this.assetRepository.removeAsset(uuid);
   }
 
+  // ─── Paginated dropdown search (used by the frontend asset picker) ──────────
+
+  /** GET /asset/search — paginated asset list with optional full-text search */
+  public async searchAssets(
+    search: string | undefined,
+    offset: number,
+    limit: number,
+  ): Promise<{ assets: AssetResponseDto[]; hasMore: boolean }> {
+    const result = await this.assetRepository.getAssets(undefined, offset, limit, search);
+    return {
+      assets:  result.assets.map((a) => this.assetMapper.assetEntityToDto(a)),
+      hasMore: offset + result.assets.length < result.length,
+    };
+  }
+
+  /** GET /asset/:assetId — single asset by UUID */
+  public async getAssetById(uuid: string): Promise<AssetResponseDto | null> {
+    const asset = await this.assetRepository.getAssetFromUUID(uuid);
+    return asset ? this.assetMapper.assetEntityToDto(asset) : null;
+  }
+
   // ─── Custom asset methods (ported from HEAD branch) ───────────────────────
 
   public async getAllAssets(): Promise<AssetResponseDto[]> {

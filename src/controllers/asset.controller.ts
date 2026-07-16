@@ -84,6 +84,30 @@ class AssetController {
     }
   }
 
+  /** GET /asset/search?search=apple&offset=0&limit=10 */
+  public async searchAssets(req: Request, res: Response): Promise<Response> {
+    try {
+      const search = req.query.search as string | undefined;
+      const limit  = Math.min(Number(req.query.limit)  || 10, 50);
+      const offset = Math.max(Number(req.query.offset) || 0,   0);
+      const result = await this.assetService.searchAssets(search, offset, limit);
+      return res.status(200).json(result);
+    } catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
+  /** GET /asset/:assetId */
+  public async getAssetById(req: Request, res: Response): Promise<Response> {
+    try {
+      const asset = await this.assetService.getAssetById(req.params.assetId as string);
+      if (!asset) return res.status(404).json({ message: "Asset not found" });
+      return res.status(200).json(asset);
+    } catch {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   public async getAllAssets(req: Request, res: Response): Promise<Response> {
     try {
       const type = req.query.type as string | undefined;
