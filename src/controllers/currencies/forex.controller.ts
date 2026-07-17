@@ -14,8 +14,8 @@ class ForexController {
   public async getExcelTemplate(req: Request, res: Response): Promise<void | Response> {
     try {
       const filePath = path.join(
-        process.cwd(),
-        "src/asset/excel/forex.xlsx"
+        __dirname,
+        "../../asset/excel/forex.xlsx"
       );
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({message: "File not found"});

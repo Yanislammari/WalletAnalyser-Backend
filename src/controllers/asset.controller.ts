@@ -151,8 +151,8 @@ class AssetController {
   public async getExcelTemplate(req : Request, res : Response):  Promise<void | Response> {
     try {
       const filePath = path.join(
-        process.cwd(),
-        "src/asset/json/IVV_holdings.json"
+        __dirname,
+        "../asset/json/IVV_holdings.json"
       );
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({message: "File not found"});

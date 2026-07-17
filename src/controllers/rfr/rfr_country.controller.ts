@@ -20,8 +20,8 @@ class RfrCountryController {
   public async getExcelTemplate(req: Request, res: Response): Promise<void | Response> {
     try {
       const filePath = path.join(
-        process.cwd(),
-        "src/asset/excel/rfr/rfr_usa.xlsx"
+        __dirname,
+        "../../asset/excel/rfr/rfr_usa.xlsx"
       );
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({message: "File not found"});
