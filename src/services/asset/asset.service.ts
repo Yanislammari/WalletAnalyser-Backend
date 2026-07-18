@@ -14,6 +14,9 @@ import { AssetMapper } from "../../mappers/asset.mapper";
 import { AssetResponseDto } from "../../dtos/asset/responses/asset.response.dto";
 import { AssetPriceResponseDto } from "../../dtos/asset/responses/asset.price.response.dto";
 import { sequelize } from "../../config";
+import { UserAssetBuyRepository } from "../../repositories/portfolio/user.asset.buy.repository";
+import { UserAssetSellRepository } from "../../repositories/portfolio/user.asset.sell.repository";
+import { UserAssetDividendRepository } from "../../repositories/portfolio/user.asset.dividend.repository";
 
 export class AssetService {
   private readonly assetRepository: AssetRepository;
@@ -24,16 +27,22 @@ export class AssetService {
   private readonly countryRepository: CountryRepository;
   private readonly yahooFinanceService: YahooFinanceService;
   private readonly assetMapper: AssetMapper;
+  private readonly userAssetBuyRepository: UserAssetBuyRepository;
+  private readonly userAssetSellRepository: UserAssetSellRepository;
+  private readonly userAssetDividendRepository: UserAssetDividendRepository;
 
   constructor() {
-    this.assetRepository      = new AssetRepository();
-    this.assetPriceRepository = new AssetPriceRepository();
-    this.assetDividendRepository = new AssetDividendRepository();
-    this.currenciesRepository = new CurrenciesRepository();
-    this.sectorRepository     = new SectorRepository();
-    this.countryRepository    = new CountryRepository();
-    this.yahooFinanceService  = new YahooFinanceService();
-    this.assetMapper          = new AssetMapper();
+    this.assetRepository            = new AssetRepository();
+    this.assetPriceRepository       = new AssetPriceRepository();
+    this.assetDividendRepository    = new AssetDividendRepository();
+    this.currenciesRepository       = new CurrenciesRepository();
+    this.sectorRepository           = new SectorRepository();
+    this.countryRepository          = new CountryRepository();
+    this.yahooFinanceService        = new YahooFinanceService();
+    this.assetMapper                = new AssetMapper();
+    this.userAssetBuyRepository     = new UserAssetBuyRepository();
+    this.userAssetSellRepository    = new UserAssetSellRepository();
+    this.userAssetDividendRepository = new UserAssetDividendRepository();
   }
 
   public async getAssets(type?: string, offset = 0, limit = 100, search?: string): Promise<MetaDataAssets> {
@@ -107,8 +116,17 @@ export class AssetService {
     return this.assetRepository.patchAssetInfo(uuid, asset);
   }
 
-  public async deleteAsset(uuid: string) {
-    return this.assetRepository.removeAsset(uuid);
+  public async deleteAsset(uuid: string): Promise<boolean> {
+    return sequelize.transaction(async (t) => {
+      // 1. Supprimer toutes les transactions utilisateurs liées à cet asset (tous portfolios)
+      await Promise.all([
+        this.userAssetBuyRepository.deleteByAssetId(uuid, t),
+        this.userAssetSellRepository.deleteByAssetId(uuid, t),
+        this.userAssetDividendRepository.deleteByAssetId(uuid, t),
+      ]);
+      // 2. Supprimer l'asset lui-même
+      return this.assetRepository.removeAsset(uuid);
+    });
   }
 
   // ─── Paginated dropdown search (used by the frontend asset picker) ──────────

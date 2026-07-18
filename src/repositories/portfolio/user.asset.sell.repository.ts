@@ -100,4 +100,8 @@ export class UserAssetSellRepository extends BaseRepository<UserAssetSell> {
       }]
     })
   }
+
+  public async deleteByAssetId(assetUuid: string, transaction?: import("sequelize").Transaction): Promise<void> {
+    await this.model.destroy({ where: { asset_uuid: assetUuid }, transaction });
+  }
 }

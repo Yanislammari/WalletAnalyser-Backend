@@ -3,6 +3,15 @@ import AzureBlobService from "../services/azure.blob.service";
 import { AZURE_BLOB_STORAGE_CONTAINER_NAME_EXAMPLES } from "../constants/env";
 import { CsvImportService, ImportHistoryItem, ImportResult } from "../services/portfolio/csv.import.service";
 
+/** CSV template generated inline — no Azure Blob dependency */
+const CSV_TEMPLATE_CONTENT = [
+  "ticker,type,date,shares,amount,currency",
+  "AMZN,buy,2024-01-15,10,2200,USD",
+  "AAPL,buy,2024-02-01,20,3400,USD",
+  "MC.PA,buy,2024-03-01,5,3500,EUR",
+  "AMZN,sell,2024-06-15,3,750,USD",
+].join("\n");
+
 const TEMPLATE_FILES: Record<string, { filename: string; mimeType: string }> = {
   xlsx: {
     filename: "ASSETS_TRANSACTIONS_EXAMPLE_XLSX.xlsx",
@@ -34,6 +43,16 @@ class ImportController {
 
       if (!template) {
         res.status(400).json({ message: "Invalid format. Use xlsx, xls or csv." });
+        return;
+      }
+
+      // CSV is a static text template — generate it inline, no Azure Blob needed
+      if (format === "csv") {
+        const buffer = Buffer.from(CSV_TEMPLATE_CONTENT, "utf-8");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="${template.filename}"`);
+        res.setHeader("Content-Length", buffer.length);
+        res.send(buffer);
         return;
       }
 
