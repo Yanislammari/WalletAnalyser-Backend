@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import ImportController from "../controllers/import.controller";
+import { createVerifySubscribeMiddleware } from "../middleware/subscribe";
 
 // Multer configured to keep the file in memory (no disk writes)
 const csvUpload = multer({
@@ -22,16 +23,18 @@ const ImportRoutes = (): Router => {
   // Download example template
   router.get("/template/:format", (req, res) => importController.downloadTemplate(req, res));
 
-  // Upload & import a CSV file into a portfolio
+  // Upload & import a CSV file into a portfolio (Pro only)
   router.post(
     "/portfolio/:portfolioId/csv",
+    createVerifySubscribeMiddleware(),
     csvUpload.single("file"),
     (req, res) => importController.importCsv(req, res)
   );
 
-  // Get import history for a portfolio
+  // Get import history for a portfolio (Pro only)
   router.get(
     "/portfolio/:portfolioId/history",
+    createVerifySubscribeMiddleware(),
     (req, res) => importController.getImportHistory(req, res)
   );
 

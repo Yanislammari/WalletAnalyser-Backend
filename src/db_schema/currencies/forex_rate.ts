@@ -46,6 +46,10 @@ ForexRate.init(
   },
   {
     sequelize,
+    indexes: [
+      // Composite index: forex rate lookups by pair + date (getClosestForexRateBeforeOrAt)
+      { fields: ["forex_uuid", "forex_rate_date"] },
+    ],
   }
 );
 

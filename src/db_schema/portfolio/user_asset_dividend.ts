@@ -81,6 +81,7 @@ UserAssetDividend.init(
   },
   {
     sequelize,
+    indexes: [{ fields: ["portfolio_uuid"] }],
   }
 );
 

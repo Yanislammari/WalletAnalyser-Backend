@@ -12,6 +12,7 @@ const PortfolioRoutes = (): Router => {
   router.get("/:portfolioId/asset-count", (req, res) => portfolioController.getAssetCountByPortfolioId(req, res));
   router.get("/:portfolioId/companies", (req, res) => portfolioController.getCompaniesByPortfolioId(req, res));
   router.get("/:portfolioId/total", (req, res) => portfolioController.getPortfolioTotal(req, res));
+  router.get("/:portfolioId/dashboard", (req, res) => portfolioController.getDashboardData(req, res));
   router.get("/:portfolioId/metrics", createVerifySubscribeMiddleware(), (req, res) => portfolioController.getMetrics(req, res));
   router.get("/:portfolioId/buys", (req, res) => portfolioController.getBuysByPortfolioId(req, res));
   router.post("/:portfolioId/buys", (req, res) => portfolioController.addAssetBuy(req, res));
